@@ -7,11 +7,18 @@ A retro side-scrolling beat-'em-up starring Andy, Jason, and Mike from The Fanta
 Open `index.html` in any browser (or visit the hosted link once deployed).
 
 **Controls**
-- Move: Arrow keys / WASD (also up/down to dodge sideways)
-- Jump: Space
-- Punch: J
-- Kick: K
-- Special: L (needs meter)
+- Move: Arrow keys / WASD — up/down changes your depth in the lane
+- Punch: J — tap up to 3 times for a combo string; the third hit knocks down
+- Heavy: K — slower, knocks down on its own
+- Special: L — costs meter, brief invincibility (panic button)
+- Jump: Space — press J in the air for a dive kick
+- Dash: double-tap left/right — press J while dashing for a shoulder charge
+- **Grab & throw:** knock an enemy down, and when `GRAB!` flashes over them walk in
+  and press J to grab. Then J to knee them, or K to hurl them into the pack.
+
+**Dodging:** enemy fire uses a tight depth window — a quick tap of up or down
+(about 20px) slips the line. The boss shows a red aim line during his windup;
+step off it before he fires.
 
 ## Story
 
