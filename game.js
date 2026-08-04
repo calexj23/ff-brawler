@@ -854,9 +854,15 @@
       const hb = { x: boss.x - 140, y: GROUND_Y - 100, w: 280, h: 130 };
       if (overlap(hb, player.hurtbox())) player.takeDamage(7 + boss.phase * 2, boss.x);
       spawnHit(boss.x, GROUND_Y, '#ff8c3c');
-      for (let i = 0; i < 3; i++) {
-        projectiles.push({ owner: 'enemy', x: boss.x, y: GROUND_Y - 40, vx: (i - 1) * 4, vy: -3, dmg: 5, w: 10, h: 10, friendly: false, life: 1200, color: '#f4c542', arc: true });
-      }
+      // stat-sheet fireballs, one per vertical lane, travelling straight (no arc).
+      // Only 2 of the 3 lanes fire -- there's always a gap open if you reposition.
+      const dir = player.x > boss.x ? 1 : -1;
+      const lanes = [BAND_TOP + 15, GROUND_Y, BAND_BOTTOM - 15];
+      const skip = Math.floor(rand(0, 3));
+      lanes.forEach((laneY, i) => {
+        if (i === skip) return;
+        projectiles.push({ owner: 'enemy', x: boss.x, y: laneY, vx: dir * 5, dmg: 6, w: 12, h: 10, friendly: false, life: 1400, color: '#f4c542' });
+      });
     } else if (kind === 'rush') {
       boss.rushing = true;
       spawnPopup(boss.x, boss.y - 220, 'RUNNER-UP RUSH', '#ff3b3b');
@@ -937,7 +943,12 @@
           }
         }
       } else {
-        if (overlap({ x: p.x - p.w/2, y: p.y - p.h/2, w: p.w, h: p.h }, player.hurtbox())) {
+        // depth dodge: only x-overlap isn't enough, or moving up/down would never
+        // matter -- require the player to actually be in the projectile's lane
+        const hb = player.hurtbox();
+        const xHit = p.x + p.w / 2 > hb.x && p.x - p.w / 2 < hb.x + hb.w;
+        const yHit = Math.abs(p.y - player.y) < 32;
+        if (xHit && yHit) {
           player.takeDamage(p.dmg, p.x);
           p.life = 0;
         }
