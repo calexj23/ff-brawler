@@ -24,6 +24,30 @@ step off it before he fires.
 
 Fight through four stages themed on real FootClan franchises — the UDK War Room, the Fantasy Vulture Swamp, the DFS & Betting Floor, and the Megalabowl Colosseum — before facing the final boss: **The Runner-Up**, a giant sentient "2" wearing glasses who has finished second in the Megalabowl every year and now guards the gate to the Listener League.
 
+## The enemies actually play their names
+
+Every enemy has a behaviour that acts out its joke, not just a label:
+
+| Enemy | What it does |
+| --- | --- |
+| Waiver-Wire Zombie | Races you to health drops and claims them off waivers |
+| Stat-Vulture | Swoops on a nearly-dead enemy to steal the kill — you get zero points |
+| Rogue Mock-Draftee | Wild, unpredictable "REACH!" lunges from out of range |
+| Shady Bookie | Sometimes hedges your hit away entirely — the house always wins |
+| Dice Roller | Damage is literally a roll of 2d6, and he tells you what he rolled |
+| Trash Talker | Runs his mouth and hypes every nearby enemy into moving faster |
+| Rival FootClan Champ | Reads your attack and counters it |
+| The Late-Round QB | Throws a fast flat spiral instead of a lob |
+| Alpha Vulture | Dive-bombs across the arena |
+| The Card Shark | Fans three cards across three lanes at once |
+| The Former Champ | Charging shoulder tackle you have to sidestep |
+
+## Score
+
+Points per KO, scaled bonuses for longer combo chains, and an end-of-stage tally
+with a rank from **F** to **S** based on deaths, best combo and health remaining.
+High score persists in your browser.
+
 ## Tech
 
 HTML5 Canvas game, no build step. Everything renders through a low-res buffer upscaled with smoothing off for a genuine chunky-pixel look. Just static files (`index.html`, `style.css`, `game.js`, `assets/`), so it deploys as-is to GitHub Pages / Cloudflare Pages / any static host.

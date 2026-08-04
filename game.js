@@ -305,20 +305,32 @@
   function drawRunnerUpBoss(ctx, boss, camX) {
     const x = boss.x - camX, y = boss.y - boss.jumpZ;
     const shake = boss.enraged ? rand(-2, 2) : 0;
-    ctx.save();
-    ctx.translate(x + shake, y);
-    if (boss.flashTimer > 0) ctx.filter = 'brightness(2.2)';
+    const hpRatio = clamp(boss.hp / boss.maxHp, 0, 1);
 
+    ctx.save();
+    ctx.translate(x + shake + (boss.recoil || 0), y);
+
+    // shadow tracks the squash so he reads as planted
     ctx.globalAlpha = 0.35;
-    px(ctx, -34, 4, 68, 12, '#000');
+    px(ctx, -34 * (boss.sx || 1), 4, 68 * (boss.sx || 1), 12, '#000');
     ctx.globalAlpha = 1;
 
-    const wobble = Math.sin(boss.t * 0.01) * 3;
+    if (boss.flashTimer > 0) ctx.filter = 'brightness(2.4) saturate(0.3)';
+
+    // idle: heavier, slower breathing as he tires. Beaten down = he sags.
+    const tired = 1 - hpRatio;
+    const breathe = Math.sin(boss.t * (0.008 + tired * 0.006)) * (2.5 + tired * 2.5);
+    const sag = tired * 7;
+
     const telegraphing = !!boss.attackTelegraph;
     const bodyColor = telegraphing ? '#ff7043' : (boss.enraged ? '#c0392b' : '#3b5bdb');
     const outline = '#1b2a66';
 
-    ctx.translate(0, wobble);
+    // squash & stretch drives the whole silhouette
+    const sx = boss.sx || 1, sy = boss.sy || 1;
+    ctx.translate(0, breathe + sag);
+    ctx.scale(sx, sy);
+
     px(ctx, -34, -14, 68, 16, bodyColor);
     px(ctx, -6, -34, 34, 16, bodyColor);
     px(ctx, -26, -54, 34, 16, bodyColor);
@@ -329,17 +341,32 @@
     px(ctx, -34, -84, 68, 4, outline);
     ctx.globalAlpha = 1;
 
-    // face plate + glasses
+    // face plate
     px(ctx, -20, -80, 40, 22, '#f2d9b1');
+
+    // glasses -- frames crack as he loses phases
     px(ctx, -24, -78, 18, 8, '#1a1a1a');
     px(ctx, 6, -78, 18, 8, '#1a1a1a');
     px(ctx, -6, -76, 12, 3, '#1a1a1a');
     px(ctx, -22, -80, 4, 8, '#1a1a1a');
     px(ctx, 22, -80, 4, 8, '#1a1a1a');
+
     const eye = boss.enraged ? '#ff3b3b' : '#dff';
     px(ctx, -21, -76, 14, 3, eye);
     px(ctx, 7, -76, 14, 3, eye);
 
+    // phase 2: left lens cracked. phase 3: both, and a chip out of the frame.
+    if (boss.phase >= 2) {
+      px(ctx, -18, -78, 2, 8, '#6d6d6d');
+      px(ctx, -14, -76, 2, 5, '#6d6d6d');
+    }
+    if (boss.phase >= 3) {
+      px(ctx, 11, -78, 2, 8, '#6d6d6d');
+      px(ctx, 15, -75, 2, 4, '#6d6d6d');
+      px(ctx, 20, -80, 4, 3, '#f2d9b1'); // chipped corner
+    }
+
+    // arms come out for the slam windup
     if (boss.attackTelegraph === 'slam') {
       px(ctx, -60, -60, 22, 14, bodyColor);
       px(ctx, 38, -60, 22, 14, bodyColor);
@@ -347,6 +374,22 @@
 
     ctx.filter = 'none';
     ctx.restore();
+
+    // trash talk, rendered unscaled above his head
+    if (boss.sayTimer > 0 && boss.sayText) {
+      ctx.save();
+      ctx.globalAlpha = clamp(boss.sayTimer / 400, 0, 1);
+      ctx.font = 'bold 13px monospace';
+      ctx.textAlign = 'center';
+      const tw = ctx.measureText(boss.sayText).width;
+      px(ctx, x - tw / 2 - 8, y - 152, tw + 16, 20, '#0d0d18');
+      ctx.strokeStyle = '#ff4d4d'; ctx.lineWidth = 1;
+      ctx.strokeRect(x - tw / 2 - 8, y - 152, tw + 16, 20);
+      ctx.fillStyle = '#ff8c8c';
+      ctx.fillText(boss.sayText, x, y - 138);
+      ctx.textAlign = 'left';
+      ctx.restore();
+    }
   }
 
   // ============================================================
@@ -440,31 +483,52 @@
     },
   };
 
+  // Every enemy carries a `trait` -- a behaviour that dramatises its name.
+  // The name alone is a setup; the trait is the punchline.
   const ENEMY_DEFS = {
     draftee: { name: 'Rogue Mock-Draftee', hp: 24, speed: 1.7, dmg: 5, atkRange: 44, atkCd: 1000, size: 1,
-      spriteKey: 'renegade', tint: 'saturate(0.6) brightness(0.85)', projColor: '#aaa' },
+      spriteKey: 'renegade', tint: 'saturate(0.6) brightness(0.85)', projColor: '#aaa',
+      trait: 'reach', points: 100 },
     zombie: { name: 'Waiver-Wire Zombie', hp: 36, speed: 1.0, dmg: 7, atkRange: 42, atkCd: 1300, size: 1.05,
-      spriteKey: 'renegade', tint: 'hue-rotate(80deg) saturate(0.8) brightness(0.7)', projColor: '#6a8a52' },
-    vulture: { name: 'Stat-Vulture', hp: 18, speed: 2.4, dmg: 5, atkRange: 34, atkCd: 950, size: 1, flyer: true },
+      spriteKey: 'renegade', tint: 'hue-rotate(80deg) saturate(0.8) brightness(0.7)', projColor: '#6a8a52',
+      trait: 'scavenge', points: 150 },
+    vulture: { name: 'Stat-Vulture', hp: 18, speed: 2.4, dmg: 5, atkRange: 34, atkCd: 950, size: 1, flyer: true,
+      trait: 'vulture', points: 120 },
     bookie: { name: 'Shady Bookie', hp: 28, speed: 2.0, dmg: 6, atkRange: 44, atkCd: 950, size: 1,
-      spriteKey: 'ranger', tint: 'hue-rotate(250deg) saturate(0.9) brightness(0.8)', projColor: '#ffd23f' },
+      spriteKey: 'ranger', tint: 'hue-rotate(250deg) saturate(0.9) brightness(0.8)', projColor: '#ffd23f',
+      trait: 'hedge', points: 150 },
     roller: { name: 'Dice Roller', hp: 22, speed: 1.7, dmg: 5, atkRange: 230, atkCd: 1700, size: 1, ranged: true,
-      spriteKey: 'ranger', tint: 'hue-rotate(300deg) saturate(1.2)', projColor: '#ff4fa3' },
+      spriteKey: 'ranger', tint: 'hue-rotate(300deg) saturate(1.2)', projColor: '#ff4fa3',
+      trait: 'roll', points: 150 },
     rival: { name: 'Rival FootClan Champ', hp: 48, speed: 2.2, dmg: 8, atkRange: 46, atkCd: 850, size: 1.08,
-      spriteKey: 'renegade', tint: 'hue-rotate(330deg) saturate(1.3) brightness(0.9)', projColor: '#d98f3c' },
+      spriteKey: 'renegade', tint: 'hue-rotate(330deg) saturate(1.3) brightness(0.9)', projColor: '#d98f3c',
+      trait: 'counter', points: 250 },
     talker: { name: 'Trash Talker', hp: 32, speed: 1.8, dmg: 5, atkRange: 250, atkCd: 1800, size: 1, ranged: true,
-      spriteKey: 'ranger', tint: 'hue-rotate(170deg) saturate(0.4) brightness(0.75)', projColor: '#ff8c3c' },
+      spriteKey: 'ranger', tint: 'hue-rotate(170deg) saturate(0.4) brightness(0.75)', projColor: '#ff8c3c',
+      trait: 'hype', points: 200 },
   };
 
   const MINIBOSS_DEFS = {
-    lateround: { name: 'The Late-Round QB', hp: 90, speed: 1.5, dmg: 9, atkRange: 230, atkCd: 1200, size: 1.5, ranged: true, miniboss: true,
-      spriteKey: 'renegade', tint: 'hue-rotate(220deg) saturate(1.4)', projColor: '#f4c542' },
-    alphavulture: { name: 'Alpha Vulture', hp: 105, speed: 2.0, dmg: 8, atkRange: 44, atkCd: 950, size: 1.8, flyer: true, summons: true, miniboss: true },
-    cardshark: { name: 'The Card Shark', hp: 135, speed: 2.1, dmg: 9, atkRange: 215, atkCd: 1250, size: 1.5, ranged: true, miniboss: true,
-      spriteKey: 'ranger', tint: 'hue-rotate(300deg) saturate(1.5) brightness(0.85)', projColor: '#ff4fa3' },
+    lateround: { name: 'The Late-Round QB', hp: 90, speed: 1.5, dmg: 9, atkRange: 260, atkCd: 1200, size: 1.5, ranged: true, miniboss: true,
+      spriteKey: 'renegade', tint: 'hue-rotate(220deg) saturate(1.4)', projColor: '#f4c542',
+      trait: 'spiral', points: 1000 },
+    alphavulture: { name: 'Alpha Vulture', hp: 105, speed: 2.0, dmg: 8, atkRange: 44, atkCd: 950, size: 1.8, flyer: true, summons: true, miniboss: true,
+      trait: 'divebomb', points: 1200 },
+    cardshark: { name: 'The Card Shark', hp: 135, speed: 2.1, dmg: 9, atkRange: 240, atkCd: 1250, size: 1.5, ranged: true, miniboss: true,
+      spriteKey: 'ranger', tint: 'hue-rotate(300deg) saturate(1.5) brightness(0.85)', projColor: '#ff4fa3',
+      trait: 'cardfan', points: 1400 },
     formerchamp: { name: 'The Former Champ', hp: 165, speed: 2.0, dmg: 11, atkRange: 50, atkCd: 850, size: 1.7, miniboss: true,
-      spriteKey: 'renegade', tint: 'hue-rotate(345deg) saturate(1.5) brightness(0.75)', projColor: '#ffd23f' },
+      spriteKey: 'renegade', tint: 'hue-rotate(345deg) saturate(1.5) brightness(0.75)', projColor: '#ffd23f',
+      trait: 'tackle', points: 1600 },
   };
+
+  const TRASH_TALK = [
+    'YOUR RB1 IS ON BYE',
+    'YOU DRAFTED A KICKER EARLY',
+    'ZERO-RB WAS A MISTAKE',
+    'I HAD HIM ON MY BENCH',
+    'THAT TRADE WAS A FLEECE',
+  ];
 
   // ============================================================
   // Effects
@@ -754,6 +818,9 @@
           this.meter = clamp(this.meter + (hb.heavy ? 12 : 7), 0, this.maxMeter);
           this.comboCount++;
           this.comboDisplayTimer = 1400;
+          // deeper combos are worth more per hit -- the reason to keep the chain alive
+          score += 10 * Math.min(this.comboCount, 10);
+          if (stageStats && this.comboCount > stageStats.bestCombo) stageStats.bestCombo = this.comboCount;
           hitStopTimer = Math.max(hitStopTimer, hb.heavy ? 95 : 62);
           if (hb.heavy) { shakeTimer = Math.max(shakeTimer, 160); SFX.heavy(); }
           else SFX.hit();
@@ -790,15 +857,39 @@
       this.dazed = false; this.dazedTimer = 0;
       this.thrown = false; this.tvx = 0; this.tvz = 0; this.spin = 0; this.thrownBy = null;
       this.grabbedBy = null;
+      // trait state
+      this.traitCd = rand(1200, 2600);
+      this.lunging = 0;          // reach / tackle dash
+      this.hyped = 0;            // buffed by a Trash Talker
+      this.sayTimer = 0; this.sayText = '';
+      this.diving = false;
     }
     get progress() { return this.attackDuration > 0 ? clamp(1 - this.attackTimer / this.attackDuration, 0, 1) : 0; }
 
+    say(text, ms) {
+      this.sayText = text; this.sayTimer = ms || 1400;
+    }
+
     takeDamage(dmg, fromX, knock, knockdown) {
       if (this.dying) return;
+      // Shady Bookie: the house always wins. Occasionally hedges your bet away.
+      if (this.def.trait === 'hedge' && !this.knockedDown && !this.dazed
+          && this.traitCd <= 0 && Math.random() < 0.42) {
+        this.traitCd = 2600;
+        this.knockX += (this.x < fromX ? -1 : 1) * 16;
+        this.say('HEDGED!', 900);
+        spawnPopup(this.x, this.y - 100, 'NO BET', '#5cc8f5');
+        return;
+      }
       this.hp -= dmg;
       this.hurtTimer = 170;
       this.flashTimer = 140;
       this.attackState = null;
+      // the boss can't be knocked around, so he flinches instead
+      if (this.def.customAI) {
+        this.sx = 0.88; this.sy = 1.12;
+        this.recoil = (this.x < fromX ? -1 : 1) * 7;
+      }
       if (this.grabbedBy && knockdown) { this.grabbedBy.releaseGrab(); }
       if (!this.grabbedBy) this.knockX += (this.x < fromX ? -1 : 1) * (knock || 6);
       spawnPopup(this.x, this.y - 100, '-' + dmg, '#ffd23f');
@@ -810,6 +901,11 @@
         SFX.ko();
         spawnPopup(this.x, this.y - 115, 'KO!', '#fff', true);
         spawnHit(this.x, this.y - 55, '#fff', 16, 1.5);
+        if (!this.vulturedKill) {
+          const pts = this.def.points || 100;
+          addScore(pts, this.x, this.y - 138);
+          if (stageStats) stageStats.kills++;
+        }
         if (Math.random() < 0.34 && !this.def.miniboss) {
           pickups.push({ x: this.x, y: this.y, heal: 20, life: 10000, t: 0 });
         }
@@ -830,6 +926,9 @@
       this.hurtTimer = Math.max(0, this.hurtTimer - dt);
       this.flashTimer = Math.max(0, this.flashTimer - dt);
       this.atkCd = Math.max(0, this.atkCd - dt);
+      this.traitCd = Math.max(0, this.traitCd - dt);
+      this.sayTimer = Math.max(0, this.sayTimer - dt);
+      if (this.hyped > 0) this.hyped -= dt;
       if (this.dazedTimer > 0) { this.dazedTimer -= dt; if (this.dazedTimer <= 0) this.dazed = false; }
 
       // ---- thrown through the air (the signature TiT move) --------------
@@ -898,6 +997,9 @@
       if (this.hurtTimer > 0) { this.pose = 'hurt'; return; }
       if (this.dazed) { this.pose = 'idle'; return; } // dazed = free grab window
 
+      // trait behaviour gets first refusal on the turn
+      if (this.runTrait(dt, player, world)) return;
+
       const dx = player.x - this.x, dy = player.y - this.y;
       const d = Math.hypot(dx, dy);
 
@@ -909,9 +1011,19 @@
           if (this.attackState === 'wind') {
             this.facing = player.x > this.x ? 1 : -1;
             if (this.def.ranged) {
+              let dmg = this.def.dmg, w = 12, h = 10, vx = this.facing * 6, trail = false;
+              if (this.def.trait === 'roll') {
+                // Dice Roller: damage is literally a roll of 2d6
+                dmg = Math.ceil(rand(0, 6)) + Math.ceil(rand(0, 6));
+                this.say('ROLLED ' + dmg, 1100);
+              } else if (this.def.trait === 'spiral') {
+                // Late-Round QB throws an actual spiral -- fast and flat
+                vx = this.facing * 9.5; w = 20; h = 8; trail = true;
+                this.say('DEEP BALL', 1100);
+              }
               projectiles.push({
-                x: this.x + this.facing * 18, y: this.y, vx: this.facing * 6,
-                dmg: this.def.dmg, friendly: false, life: 3000, w: 12, h: 10,
+                x: this.x + this.facing * 18, y: this.y, vx,
+                dmg, friendly: false, life: 3000, w, h, trail,
                 color: this.def.projColor || '#ff4fa3',
               });
               SFX.fire();
@@ -940,23 +1052,208 @@
       }
 
       const range = this.def.atkRange;
+      const hypeMul = this.hyped > 0 ? 1.35 : 1;
       if (d > range * 0.85) {
         const len = d || 1;
-        this.x += (dx / len) * this.def.speed;
-        this.y = clamp(this.y + (dy / len) * this.def.speed * 0.7, BAND_TOP, BAND_BOTTOM);
+        this.x += (dx / len) * this.def.speed * hypeMul;
+        this.y = clamp(this.y + (dy / len) * this.def.speed * 0.7 * hypeMul, BAND_TOP, BAND_BOTTOM);
         this.facing = dx > 0 ? 1 : -1;
         this.pose = 'walk';
       } else {
         this.facing = player.x > this.x ? 1 : -1;
         this.pose = 'idle';
         if (this.atkCd <= 0) {
-          this.atkCd = this.def.atkCd;
+          this.atkCd = this.def.atkCd / hypeMul;
           this.attackState = 'wind';
-          this.attackTimer = this.attackDuration = 320; // visible windup = readable
+          this.attackTimer = this.attackDuration = 320 / hypeMul; // visible windup = readable
           this.pose = 'punch';
         }
       }
       if (this.def.summons) this.tickSummon(dt, world);
+    }
+
+    moveToward(tx, ty, mult) {
+      const dx = tx - this.x, dy = ty - this.y;
+      const len = Math.hypot(dx, dy) || 1;
+      const sp = this.def.speed * (mult || 1) * (this.hyped > 0 ? 1.35 : 1);
+      this.x += (dx / len) * sp;
+      this.y = clamp(this.y + (dy / len) * sp * 0.7, BAND_TOP, BAND_BOTTOM);
+      this.facing = dx > 0 ? 1 : -1;
+      this.pose = 'walk';
+    }
+
+    // Returns true if the trait took over this frame's behaviour entirely.
+    runTrait(dt, player, world) {
+      const trait = this.def.trait;
+      if (!trait) return false;
+
+      switch (trait) {
+        // --- Waiver-Wire Zombie: races you to the health drops and eats them
+        case 'scavenge': {
+          let best = null, bd = 1e9;
+          for (const pk of pickups) {
+            const dd = Math.hypot(pk.x - this.x, pk.y - this.y);
+            if (dd < 420 && dd < bd) { bd = dd; best = pk; }
+          }
+          if (!best) return false;
+          if (bd < 30) {
+            best.life = 0;
+            this.hp = Math.min(this.maxHp, this.hp + best.heal);
+            this.say('CLAIMED OFF WAIVERS', 1500);
+            spawnPopup(this.x, this.y - 118, 'STOLEN!', '#7fbf6a');
+            SFX.pickup();
+            this.traitCd = 1500;
+          } else {
+            this.moveToward(best.x, best.y, 1.45);
+            if (this.sayTimer <= 0) this.say('MINE', 700);
+          }
+          return true;
+        }
+
+        // --- Stat-Vulture: swoops on a nearly-dead enemy to steal your kill
+        case 'vulture': {
+          let mark = null, md = 1e9;
+          for (const en of world.enemies) {
+            if (en === this || !en.alive || en.dying || en.def.flyer || en.def.customAI) continue;
+            if (en.hp > en.maxHp * 0.33) continue;
+            const dd = Math.hypot(en.x - this.x, en.y - this.y);
+            if (dd < 360 && dd < md) { md = dd; mark = en; }
+          }
+          if (!mark) return false;
+          if (md < 34) {
+            mark.vulturedKill = true;           // you get no points for this one
+            mark.takeDamage(999, this.x, 4, true);
+            this.say('VULTURED!', 1400);
+            spawnPopup(mark.x, mark.y - 132, 'KILL STOLEN', '#ff5a47');
+            this.traitCd = 2000;
+          } else {
+            this.moveToward(mark.x, mark.y, 1.5);
+          }
+          return true;
+        }
+
+        // --- Trash Talker: runs his mouth and hypes up everyone around him
+        case 'hype': {
+          if (this.traitCd > 0) return false;
+          this.traitCd = 5200;
+          let hypedAny = false;
+          for (const en of world.enemies) {
+            if (en === this || !en.alive || en.dying) continue;
+            if (Math.abs(en.x - this.x) < 240) { en.hyped = 4200; hypedAny = true; }
+          }
+          this.say(TRASH_TALK[Math.floor(Math.random() * TRASH_TALK.length)], 2000);
+          if (hypedAny) spawnPopup(this.x, this.y - 130, 'HYPED THE ROOM', '#ff8c3c');
+          return false; // still shoots normally
+        }
+
+        // --- Rogue Mock-Draftee: wild, unpredictable "reach" lunges
+        case 'reach': {
+          if (this.lunging > 0) {
+            this.lunging -= dt;
+            this.x = clamp(this.x + this.facing * 5.4, 40, world.width - 40);
+            this.pose = 'walk';
+            if (meleeHits(this.x, this.y, this.facing, player.x, player.y, 46, DEPTH_ENEMY_MELEE)) {
+              player.takeDamage(this.def.dmg, this.x);
+              this.lunging = 0;
+            }
+            return true;
+          }
+          const d = Math.hypot(player.x - this.x, player.y - this.y);
+          if (this.traitCd <= 0 && d > 70 && d < 260) {
+            this.traitCd = rand(2600, 4200);
+            this.facing = player.x > this.x ? 1 : -1;
+            this.lunging = 300;
+            this.say('REACH!', 800);
+            return true;
+          }
+          return false;
+        }
+
+        // --- Rival Champ: reads your attack and counters it
+        case 'counter': {
+          if (this.traitCd > 0) return false;
+          const d = Math.hypot(player.x - this.x, player.y - this.y);
+          if (d < 70 && player.hitbox) {
+            this.traitCd = 4200;
+            this.knockX += (this.x < player.x ? -1 : 1) * 12;   // slip back
+            this.say('READ YOU', 900);
+            this.atkCd = 0;                                      // punish immediately
+          }
+          return false;
+        }
+
+        // --- Alpha Vulture: dive-bombs across the arena
+        case 'divebomb': {
+          if (this.diving) {
+            this.x += this.tvx;
+            this.jumpZ = Math.max(0, this.jumpZ - 2.2);
+            this.pose = 'walk';
+            if (meleeHits(this.x, this.y, this.facing, player.x, player.y, 54, 34)) {
+              player.takeDamage(this.def.dmg + 3, this.x);
+              this.diving = false;
+            }
+            if (this.x < 60 || this.x > world.width - 60 || this.jumpZ <= 2) {
+              this.diving = false; this.jumpZ = 30;
+            }
+            return true;
+          }
+          if (this.traitCd <= 0) {
+            this.traitCd = 4200;
+            this.diving = true;
+            this.facing = player.x > this.x ? 1 : -1;
+            this.tvx = this.facing * 7.5;
+            this.jumpZ = 70;
+            this.say('SWOOP!', 900);
+            return true;
+          }
+          return false;
+        }
+
+        // --- Card Shark: fans a spread of cards across three lanes
+        case 'cardfan': {
+          if (this.traitCd > 0) return false;
+          this.traitCd = 3800;
+          const dir = player.x > this.x ? 1 : -1;
+          this.facing = dir;
+          for (const off of [-46, 0, 46]) {
+            projectiles.push({
+              x: this.x + dir * 24, y: clamp(player.y + off, BAND_TOP - 8, BAND_BOTTOM + 8),
+              vx: dir * 5.2, dmg: this.def.dmg, friendly: false, life: 2400, w: 12, h: 14,
+              color: '#ff4fa3', trail: true,
+            });
+          }
+          this.say('READ EM AND WEEP', 1400);
+          SFX.fire();
+          return true;
+        }
+
+        // --- Former Champ: charging shoulder tackle
+        case 'tackle': {
+          if (this.lunging > 0) {
+            this.lunging -= dt;
+            this.x = clamp(this.x + this.facing * 8.5, 40, world.width - 40);
+            this.pose = 'walk';
+            if (meleeHits(this.x, this.y, this.facing, player.x, player.y, 56, DEPTH_ENEMY_MELEE + 6)) {
+              player.takeDamage(this.def.dmg + 4, this.x);
+              shakeTimer = Math.max(shakeTimer, 180);
+              this.lunging = 0;
+            }
+            return true;
+          }
+          const d = Math.hypot(player.x - this.x, player.y - this.y);
+          if (this.traitCd <= 0 && d > 90) {
+            this.traitCd = 4000;
+            this.facing = player.x > this.x ? 1 : -1;
+            this.lunging = 520;
+            this.say('RING THE BELL', 1100);
+            spawnPopup(this.x, this.y - 150, 'CHARGING!', '#ff5a47');
+            return true;
+          }
+          return false;
+        }
+
+        default: return false;
+      }
     }
 
     tickSummon(dt, world) {
@@ -1032,9 +1329,36 @@
   let lives = 4;
   const START_LIVES = 4;
 
+  // ---- score (the arcade loop the genre is built on) -------------------
+  let score = 0, scoreShown = 0;
+  let stageStats = null;      // { kills, bestCombo, deaths, startScore }
+  let tally = null;           // end-of-stage results screen state
+  let highScore = 0;
+  try { highScore = parseInt(localStorage.getItem('ffb_highscore') || '0', 10) || 0; } catch (e) { highScore = 0; }
+
+  function addScore(n, x, y, label) {
+    score += n;
+    if (x != null) spawnPopup(x, y, (label ? label + ' ' : '') + '+' + n, '#ffd23f');
+  }
+  function saveHighScore() {
+    if (score > highScore) {
+      highScore = score;
+      try { localStorage.setItem('ffb_highscore', String(highScore)); } catch (e) { /* private mode */ }
+    }
+  }
+  function rankFor(pct) {
+    if (pct >= 0.95) return 'S';
+    if (pct >= 0.85) return 'A';
+    if (pct >= 0.70) return 'B';
+    if (pct >= 0.55) return 'C';
+    if (pct >= 0.40) return 'D';
+    return 'F';
+  }
+
   function startGame() {
     player = new Player(selectedChar);
     levelIdx = 0; lives = START_LIVES;
+    score = 0; scoreShown = 0; tally = null;
     loadLevel(0);
     state = 'playing';
   }
@@ -1059,8 +1383,11 @@
       });
       boss.phase = 1; boss.enraged = false; boss.attackTelegraph = null;
       boss.slamCd = 2400; boss.fireCd = 1600; boss.summonCd2 = 7000;
+      boss.sx = 1; boss.sy = 1; boss.recoil = 0; boss.lastPhase = 1;
       enemies.push(boss);
     }
+
+    stageStats = { kills: 0, bestCombo: 0, deaths: 0, startScore: score, startLives: lives };
 
     bannerText = lvl.name;
     bannerSub = idx === 0 ? 'J: punch (tap x3 to combo)   K: heavy   L: special   double-tap: dash' : '';
@@ -1089,10 +1416,29 @@
     boss.t += dt;
     boss.flashTimer = Math.max(0, boss.flashTimer - dt);
     boss.hurtTimer = Math.max(0, boss.hurtTimer - dt);
+    boss.sayTimer = Math.max(0, boss.sayTimer - dt);
+
+    // ease squash/stretch and hit-recoil back to rest every frame
+    boss.sx += (1 - boss.sx) * 0.16;
+    boss.sy += (1 - boss.sy) * 0.16;
+    boss.recoil *= 0.82;
+    if (Math.abs(boss.recoil) < 0.2) boss.recoil = 0;
 
     const hpRatio = boss.hp / boss.maxHp;
     boss.enraged = hpRatio < 0.34;
     boss.phase = hpRatio < 0.34 ? 3 : (hpRatio < 0.66 ? 2 : 1);
+
+    // phase change: he loses a lens and some composure
+    if (boss.phase !== boss.lastPhase) {
+      boss.lastPhase = boss.phase;
+      boss.sx = 1.3; boss.sy = 0.72;
+      shakeTimer = Math.max(shakeTimer, 260);
+      flashScreenTimer = 120;
+      SFX.heavy();
+      boss.say(boss.phase === 2 ? 'I HAVE BEEN SECOND FOR TEN YEARS'
+                                : 'SECOND PLACE IS FIRST LOSER');
+      spawnHit(boss.x, boss.y - 80, '#fff', 18, 1.6);
+    }
 
     if (!player.alive) return;
 
@@ -1119,6 +1465,8 @@
       boss.slamCd = boss.enraged ? 2000 : 3000;
       boss.attackTelegraph = 'slam';
       boss.telegraphTimer = 560;
+      boss.sx = 0.86; boss.sy = 1.20;   // stretch up before he comes down
+      if (Math.random() < 0.45) boss.say('RUNNER-UP NO MORE');
     } else if (boss.fireCd <= 0) {
       boss.fireCd = boss.enraged ? 1500 : 2300;
       // lock the aim NOW, fire after the telegraph -- so stepping off the
@@ -1137,6 +1485,7 @@
   function executeBossAttack(kind) {
     if (kind === 'slam') {
       shakeTimer = 320; hitStopTimer = Math.max(hitStopTimer, 90);
+      boss.sx = 1.34; boss.sy = 0.66;   // hard squash on impact
       SFX.slam();
       // ground pound: big x radius but it's a shockwave along the floor, so
       // it only catches you if you're roughly at its depth
@@ -1249,6 +1598,7 @@
 
     // ---- life / progression --------------------------------------------
     if (!player.alive) {
+      if (stageStats) stageStats.deaths++;
       if (lives > 1) {
         lives--;
         player.alive = true;
@@ -1257,18 +1607,51 @@
         player.knockX = 0;
         player.releaseGrab();
         bannerText = 'GET BACK IN THERE'; bannerSub = ''; bannerTimer = 1400;
-      } else state = 'gameover';
+      } else { saveHighScore(); state = 'gameover'; }
     } else if (!boss && allWavesCleared() && bannerTimer <= 0) {
-      nextLevel();
+      beginTally();
     }
   }
 
-  function onBossDefeated() { state = 'win'; winTimer = 0; SFX.levelUp(); }
+  function onBossDefeated() {
+    addScore(5000, boss.x, boss.y - 200, 'BOSS');
+    saveHighScore();
+    state = 'win'; winTimer = 0;
+    SFX.levelUp();
+  }
+
+  function beginTally() {
+    const s = stageStats || { kills: 0, bestCombo: 0, deaths: 0, startLives: lives };
+    const noDeathBonus = s.deaths === 0 ? 2000 : 0;
+    const comboBonus = s.bestCombo * 100;
+    const clearBonus = 1000;
+    const hpBonus = Math.round((player.health / player.maxHealth) * 1500);
+    const total = noDeathBonus + comboBonus + clearBonus + hpBonus;
+    // rank blends how clean the clear was with how well you chained
+    const pct = clamp(
+      (s.deaths === 0 ? 0.45 : 0.12) +
+      clamp(s.bestCombo / 12, 0, 1) * 0.3 +
+      (player.health / player.maxHealth) * 0.25, 0, 1);
+    tally = {
+      rows: [
+        ['STAGE CLEAR', clearBonus],
+        ['KO COUNT  x' + s.kills, 0],
+        ['BEST COMBO  x' + s.bestCombo, comboBonus],
+        ['HEALTH REMAINING', hpBonus],
+        ['NO-DEATH BONUS', noDeathBonus],
+      ],
+      total, awarded: 0, t: 0, rank: rankFor(pct), stage: LEVELS[levelIdx].name,
+    };
+    saveHighScore();
+    state = 'tally';
+    SFX.levelUp();
+  }
+
   function nextLevel() {
     levelIdx++;
-    if (levelIdx >= LEVELS.length) { state = 'win'; return; }
-    SFX.levelUp();
+    if (levelIdx >= LEVELS.length) { state = 'win'; saveHighScore(); return; }
     loadLevel(levelIdx);
+    state = 'playing';
   }
 
   // ============================================================
@@ -1304,9 +1687,19 @@
     ctx.fillStyle = ready ? '#ffd23f' : '#fff';
     ctx.fillText(ready ? 'SPECIAL READY (L)' : 'SPECIAL', 186, 71);
 
+    // score rolls up toward the real value -- arcade counters never snap
+    scoreShown += (score - scoreShown) * 0.18;
+    if (Math.abs(score - scoreShown) < 1) scoreShown = score;
+
     ctx.textAlign = 'right';
+    ctx.font = 'bold 20px monospace';
+    ctx.fillStyle = '#ffd23f';
+    ctx.fillText(String(Math.floor(scoreShown)).padStart(7, '0'), W - 20, 32);
+    ctx.font = '10px monospace';
+    ctx.fillStyle = '#8a92ad';
+    ctx.fillText('HI ' + String(highScore).padStart(7, '0'), W - 20, 48);
     ctx.fillStyle = '#fff';
-    ctx.fillText(LEVELS[levelIdx].name.toUpperCase(), W - 20, 30);
+    ctx.fillText(LEVELS[levelIdx].name.toUpperCase(), W - 20, 66);
     ctx.textAlign = 'left';
 
     // combo counter
@@ -1369,6 +1762,28 @@
           ctx.fillStyle = Math.floor(d.t / 150) % 2 ? '#8fd3ff' : '#fff';
           ctx.fillText('GRAB!', d.x - camX, d.y - 125 * (d.def.size || 1));
           ctx.textAlign = 'left';
+        }
+        // trait chatter -- this is where the joke actually lands
+        if (d.sayTimer > 0 && d.sayText && !d.dying) {
+          ctx.save();
+          ctx.globalAlpha = clamp(d.sayTimer / 350, 0, 1);
+          ctx.font = 'bold 10px monospace';
+          ctx.textAlign = 'center';
+          const tw = ctx.measureText(d.sayText).width;
+          const bx = d.x - camX, by = d.y - 140 * (d.def.size || 1);
+          px(ctx, bx - tw / 2 - 5, by - 11, tw + 10, 15, '#0d0d18');
+          ctx.strokeStyle = '#5c6480'; ctx.lineWidth = 1;
+          ctx.strokeRect(bx - tw / 2 - 5, by - 11, tw + 10, 15);
+          ctx.fillStyle = '#cfd6ea';
+          ctx.fillText(d.sayText, bx, by);
+          ctx.textAlign = 'left';
+          ctx.restore();
+        }
+        // hyped by a Trash Talker
+        if (d.hyped > 0 && !d.dying) {
+          ctx.globalAlpha = 0.5 + Math.sin(d.t * 0.02) * 0.3;
+          px(ctx, d.x - camX - 14, d.y + 3, 28, 3, '#ff8c3c');
+          ctx.globalAlpha = 1;
         }
         if (d.def.miniboss) {
           const topY = d.y - 130 * (d.def.size || 1) - 14;
@@ -1545,6 +1960,74 @@
     ctx.textAlign = 'left';
   }
 
+  function drawTally(dt) {
+    tally.t += dt;
+    ctx.fillStyle = '#0b0e18';
+    ctx.fillRect(0, 0, W, H);
+
+    // count the bonus up like a cabinet would
+    const target = tally.total;
+    if (tally.awarded < target) {
+      const inc = Math.max(11, Math.ceil(target / 55));
+      const add = Math.min(inc, target - tally.awarded);
+      tally.awarded += add;
+      score += add;
+      if (Math.floor(tally.t / 60) % 2 === 0) SFX.grab();
+    }
+
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#ffd23f';
+    ctx.font = 'bold 30px monospace';
+    ctx.fillText('STAGE CLEAR', W / 2, 76);
+    ctx.font = '13px monospace';
+    ctx.fillStyle = '#8a92ad';
+    ctx.fillText(tally.stage.toUpperCase(), W / 2, 100);
+
+    ctx.font = '15px monospace';
+    const left = W / 2 - 200, right = W / 2 + 200;
+    tally.rows.forEach((row, i) => {
+      const y = 156 + i * 34;
+      const shown = tally.t > i * 220;
+      if (!shown) return;
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#cfd6ea';
+      ctx.fillText(row[0], left, y);
+      ctx.textAlign = 'right';
+      ctx.fillStyle = row[1] > 0 ? '#ffd23f' : '#6a7290';
+      ctx.fillText(row[1] > 0 ? '+' + row[1] : '--', right, y);
+    });
+
+    if (tally.t > 1200) {
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 22px monospace';
+      ctx.fillText('SCORE  ' + String(score).padStart(7, '0'), W / 2, 356);
+
+      // rank stamp
+      const pop = clamp((tally.t - 1200) / 220, 0, 1);
+      const sz = 62 * (1 + (1 - pop) * 0.8);
+      ctx.save();
+      ctx.globalAlpha = pop;
+      ctx.strokeStyle = '#ffd23f'; ctx.lineWidth = 3;
+      ctx.strokeRect(W / 2 - 46, 386, 92, 84);
+      ctx.fillStyle = '#ffd23f';
+      ctx.font = 'bold ' + Math.round(sz) + 'px monospace';
+      ctx.fillText(tally.rank, W / 2, 452);
+      ctx.font = '10px monospace';
+      ctx.fillStyle = '#8a92ad';
+      ctx.fillText('RANK', W / 2, 402);
+      ctx.restore();
+    }
+
+    if (tally.t > 1900 && Math.floor(tally.t / 500) % 2 === 0) {
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 15px monospace';
+      ctx.fillText('PRESS SPACE TO CONTINUE', W / 2, 508);
+    }
+    ctx.textAlign = 'left';
+  }
+
   function drawGameOver() {
     ctx.fillStyle = 'rgba(20,0,0,0.92)';
     ctx.fillRect(0, 0, W, H);
@@ -1579,9 +2062,16 @@
     ctx.fillStyle = '#fff';
     wrapText('earns a spot at the table. FootClan Brawler complete — ready to submit for the Fantasy Footballers Listener League.', W / 2, 196, 720, 22);
 
+    ctx.font = 'bold 24px monospace';
+    ctx.fillStyle = '#ffd23f';
+    ctx.fillText('FINAL SCORE  ' + String(score).padStart(7, '0'), W / 2, 268);
+    ctx.font = '12px monospace';
+    ctx.fillStyle = score >= highScore ? '#3ddc6b' : '#8a92ad';
+    ctx.fillText(score >= highScore ? 'NEW RECORD!' : 'BEST  ' + String(highScore).padStart(7, '0'), W / 2, 290);
+
     const cd = CHAR_DEFS[selectedChar];
-    drawSprite(ctx, W / 2, 430, {
-      facing: 1, scale: 3, spriteKey: cd.spriteKey, tint: cd.tint, glasses: cd.glasses,
+    drawSprite(ctx, W / 2, 450, {
+      facing: 1, scale: 2.6, spriteKey: cd.spriteKey, tint: cd.tint, glasses: cd.glasses,
       accent: cd.accent, pose: 'special', t, progress: (t % 700) / 700,
     });
 
@@ -1625,6 +2115,15 @@
     } else if (state === 'playing') {
       update(dt);
       render();
+    } else if (state === 'tally') {
+      drawTally(clamp(dt, 0, 40));
+      if (tapped('Space') && tally.t > 700) {
+        if (tally.awarded < tally.total) {   // let impatient players skip the count
+          score += tally.total - tally.awarded;
+          tally.awarded = tally.total;
+          tally.t = 2000;
+        } else { saveHighScore(); nextLevel(); }
+      }
     } else if (state === 'gameover') {
       drawGameOver();
       if (tapped('Space')) state = 'select';
