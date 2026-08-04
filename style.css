@@ -1,0 +1,55 @@
+@font-face {
+  font-family: 'PixelFallback';
+  src: local('Courier New');
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  background: #0a0a12;
+  overflow: hidden;
+  font-family: 'Courier New', monospace;
+  color: #fff;
+}
+
+#frame {
+  position: relative;
+  width: 960px;
+  height: 540px;
+  margin: 20px auto;
+  border: 6px solid #3a3a55;
+  border-radius: 4px;
+  box-shadow: 0 0 0 3px #111, 0 0 40px rgba(0,0,0,0.6);
+  background: #000;
+  image-rendering: pixelated;
+}
+
+canvas {
+  display: block;
+  width: 960px;
+  height: 540px;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+#overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+@media (max-width: 1000px) {
+  #frame {
+    width: 96vw;
+    height: calc(96vw * 9 / 16);
+    margin: 2vw auto;
+  }
+  canvas {
+    width: 100%;
+    height: 100%;
+  }
+}
