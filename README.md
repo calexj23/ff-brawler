@@ -48,6 +48,17 @@ Points per KO, scaled bonuses for longer combo chains, and an end-of-stage tally
 with a rank from **F** to **S** based on deaths, best combo and health remaining.
 High score persists in your browser.
 
+## The three specials are three real bits
+
+Each playable host's special move is built around something they actually do on
+the show, not an invented gimmick:
+
+| Character | Special | The real bit |
+| --- | --- | --- |
+| Andy "Welcome In" Holloway | **Welcome In!** | His real intro catchphrase. Landing it hypes the crowd and gives Andy a real speed buff for a few seconds. |
+| Jason "Mailbag" Moore | **#FootClan Mailbag** | The show's actual recurring listener-question segment. Pulls a real-style mailbag question on screen before the hit lands. |
+| Mike "The Fantasy Hitman" Wright | **The Riff** | Mike genuinely releases the show's guitar-driven intro themes (see *TFFB Intros* on Bandcamp). His special is a literal guitar riff turned into a soundwave projectile, with its own power-chord sound effect. |
+
 ## Tech
 
 HTML5 Canvas game, no build step. Everything renders through a low-res buffer upscaled with smoothing off for a genuine chunky-pixel look. Just static files (`index.html`, `style.css`, `game.js`, `assets/`), so it deploys as-is to GitHub Pages / Cloudflare Pages / any static host.

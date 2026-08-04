@@ -89,6 +89,27 @@
       slam() { tone(70, 0.34, 'square', 0.28, 35); noise(0.30, 0.30, 300); },
       fire() { tone(420, 0.13, 'sawtooth', 0.12, 200); },
       levelUp() { [520, 660, 780, 1040].forEach((f, i) => setTimeout(() => tone(f, 0.12, 'square', 0.16), i * 90)); },
+
+      // --- the three real bits, each with its own signature sound ---
+      // Andy: "Welcome In" -- a rising crowd-hype swell, like a host bringing
+      // the room up before the intro music hits.
+      welcomeIn() {
+        noise(0.5, 0.14, 2600);
+        [260, 330, 415, 520].forEach((f, i) => setTimeout(() => tone(f, 0.16, 'square', 0.16), i * 60));
+      },
+      // Jason: #FootClan Mailbag -- a quick paper-shuffle sting then a chime,
+      // like flipping open a letter before he "answers" it.
+      mailbag() {
+        noise(0.14, 0.12, 3400);
+        setTimeout(() => tone(740, 0.1, 'square', 0.14), 90);
+        setTimeout(() => tone(980, 0.12, 'square', 0.15), 170);
+      },
+      // Mike: an actual power-chord riff -- root + fifth, two quick chugs.
+      riff() {
+        [110, 165].forEach((f) => tone(f, 0.14, 'sawtooth', 0.16));
+        setTimeout(() => { [110, 165].forEach((f) => tone(f, 0.14, 'sawtooth', 0.16)); }, 150);
+        setTimeout(() => { [147, 220].forEach((f) => tone(f, 0.22, 'sawtooth', 0.18, 90)); }, 320);
+      },
     };
   })();
 
@@ -450,38 +471,59 @@
     ];
   }
 
+  // Voice, not just stats -- each kit is built around one real, documented bit:
+  // Andy opens every show with "Welcome in," Jason hosts the real #FootClan
+  // Mailbag segment, and Mike releases the show's actual guitar-driven intro
+  // themes (see "TFFB Intros" on Bandcamp). The nicknames are their real ones.
   const CHAR_DEFS = {
     andy: {
-      name: 'Andy "The Spitballer" Holloway',
-      tag: 'Fastest hands. Long combo strings, quick dash.',
+      name: 'Andy "Welcome In" Holloway',
+      tag: 'Fastest hands. His special hypes the room and speeds him up.',
       spriteKey: 'ranger', tint: '', glasses: false, accent: '#ffd23f',
       speed: 3.9, jumpPow: 13.5, maxHealth: 105,
       combo: comboSet(7, 8, 15),
       kick: { dmg: 12, range: 54, dur: 300, strike: 0.28, cd: 340, knock: 20, knockdown: true, heavy: true },
-      special: { name: 'Zinger Barrage', cost: 30, dmg: 26, range: 105, cd: 700, aoe: true },
+      special: { name: 'Welcome In!', cost: 30, dmg: 26, range: 105, cd: 700, aoe: true, voice: 'welcomeIn' },
       throwDmg: 20,
+      catch: 'WELCOME IN!',
+      victory: '"Welcome in" — to the Listener League.',
     },
     jason: {
-      name: 'Jason "The Impressionist" Moore',
-      tag: 'All-rounder. Screen-clearing special.',
+      name: 'Jason "Mailbag" Moore',
+      tag: 'All-rounder. Special pulls a listener question and answers in character.',
       spriteKey: 'renegade', tint: 'hue-rotate(280deg) saturate(1.3)', glasses: false, accent: '#ffb703',
       speed: 3.4, jumpPow: 14.5, maxHealth: 115,
       combo: comboSet(8, 9, 17),
       kick: { dmg: 13, range: 56, dur: 310, strike: 0.28, cd: 360, knock: 22, knockdown: true, heavy: true },
-      special: { name: 'Impression Roulette', cost: 35, dmg: 30, range: 150, cd: 800, aoe: true },
+      special: { name: '#FootClan Mailbag', cost: 35, dmg: 30, range: 150, cd: 800, aoe: true, voice: 'mailbag' },
       throwDmg: 23,
+      catch: '#FOOTCLAN MAILBAG',
+      victory: 'That one goes straight to the top of the Mailbag.',
     },
     mike: {
-      name: 'Mike "The Hitman" Wright',
-      tag: 'Heaviest hits and throws. Ranged special.',
+      name: 'Mike "The Fantasy Hitman" Wright',
+      tag: 'Heaviest hits. Special is a real guitar riff turned into a shockwave.',
       spriteKey: 'ranger', tint: 'hue-rotate(190deg) saturate(0.55) brightness(0.7)', glasses: true, accent: '#ff3b3b',
       speed: 3.0, jumpPow: 12.5, maxHealth: 135,
       combo: comboSet(10, 11, 21),
       kick: { dmg: 16, range: 56, dur: 330, strike: 0.30, cd: 400, knock: 26, knockdown: true, heavy: true },
-      special: { name: 'The Hit', cost: 40, dmg: 38, range: 999, cd: 900, projectile: true },
+      special: { name: 'The Riff', cost: 40, dmg: 38, range: 999, cd: 900, projectile: true, voice: 'riff' },
       throwDmg: 28,
+      catch: 'DROP THE RIFF',
+      victory: 'Cue the outro riff. The Hitman clocks out.',
     },
   };
+
+  // Real #FootClan Mailbag-style questions -- Jason "answers" one every time
+  // his special fires.
+  const MAILBAG_QUESTIONS = [
+    'Q: IS IT TOO LATE TO PANIC-DROP?',
+    'Q: SHOULD I START MY TE ON A BYE?',
+    'Q: CAN I TRADE FOR YOUR RB1?',
+    'Q: WHY DID MY KICKER SCORE ZERO?',
+    'Q: IS THIS A BUY-LOW OR A DODGE?',
+    'Q: HIM, OR A GUY WHO\'S ON BYE?',
+  ];
 
   // Every enemy carries a `trait` -- a behaviour that dramatises its name.
   // The name alone is a setup; the trait is the punchline.
@@ -576,9 +618,36 @@
       this.dashTimer = 0; this.dashDir = 0; this.dashCd = 0;
       this.grabbed = null; this.grabTimer = 0; this.grabHits = 0;
       this.alive = true;
+      this.hypeTimer = 0;      // Andy's "Welcome In" crowd-hype buff
+      this.mailbagQ = '';      // Jason's current mailbag question, for the HUD callout
     }
     get progress() { return this.poseDuration > 0 ? clamp(1 - this.poseTimer / this.poseDuration, 0, 1) : 1; }
     get busy() { return this.poseTimer > 0 && this.attackKind !== null; }
+
+    // The moment each special fires -- this is where the real bit shows up.
+    fireVoiceMoment(voice) {
+      if (voice === 'welcomeIn') {
+        this.hypeTimer = 3200;
+        spawnPopup(this.x, this.y - 130, 'WELCOME IN!', '#ffd23f', true);
+        for (let i = 0; i < 10; i++) {
+          particles.push({ x: this.x, y: this.y - 60, vx: rand(-3, 3), vy: rand(-5, -1), life: 26, color: '#ffd23f' });
+        }
+        SFX.welcomeIn();
+      } else if (voice === 'mailbag') {
+        this.mailbagQ = MAILBAG_QUESTIONS[Math.floor(Math.random() * MAILBAG_QUESTIONS.length)];
+        spawnPopup(this.x, this.y - 138, this.mailbagQ, '#8fd3ff');
+        spawnPopup(this.x, this.y - 118, '#FOOTCLAN MAILBAG', '#ffb703', true);
+        for (let i = 0; i < 8; i++) {
+          particles.push({ x: this.x, y: this.y - 55, vx: rand(-2.5, 2.5), vy: rand(-4, -1), life: 22, color: '#eef0f5' });
+        }
+        SFX.mailbag();
+      } else if (voice === 'riff') {
+        spawnPopup(this.x, this.y - 130, 'DROP THE RIFF', '#ff8c8c', true);
+        SFX.riff();
+      } else {
+        SFX.special();
+      }
+    }
     // Attacks can be cancelled into the next combo hit late in recovery -- snappy chains.
     get cancelable() { return this.attackKind === 'combo' && this.progress > 0.5; }
 
@@ -659,6 +728,7 @@
       this.kickCd = Math.max(0, this.kickCd - dt);
       this.specialCd = Math.max(0, this.specialCd - dt);
       this.dashCd = Math.max(0, this.dashCd - dt);
+      this.hypeTimer = Math.max(0, this.hypeTimer - dt);
       this.comboGrace = Math.max(0, this.comboGrace - dt);
       this.comboDisplayTimer = Math.max(0, this.comboDisplayTimer - dt);
       if (this.comboGrace <= 0 && this.attackKind !== 'combo') this.comboStep = 0;
@@ -716,12 +786,12 @@
           this.kickCd = this.def.kick.cd;
         } else if (tapped('KeyL') && this.specialCd <= 0 && this.meter >= this.def.special.cost) {
           const sp = this.def.special;
-          this.startAttack('special', { dmg: sp.dmg, range: sp.range, dur: 460, strike: 0.3, knock: 30, aoe: sp.aoe, projectile: sp.projectile, knockdown: true, heavy: true });
+          this.startAttack('special', { dmg: sp.dmg, range: sp.range, dur: 460, strike: 0.3, knock: 30, aoe: sp.aoe, projectile: sp.projectile, knockdown: true, heavy: true, riff: sp.voice === 'riff' });
           this.meter -= sp.cost;
           this.specialCd = sp.cd;
           this.invuln = Math.max(this.invuln, 460); // special = brief i-frames, classic panic button
           flashScreenTimer = 140;
-          SFX.special();
+          this.fireVoiceMoment(sp.voice);
         }
       }
 
@@ -751,9 +821,10 @@
           if (Math.random() < 0.4) particles.push({ x: this.x - this.dashDir * 10, y: this.y - 6, vx: -this.dashDir * 1.5, vy: rand(-0.6, 0.2), life: 12, color: '#ffffff55' });
         } else if (dx !== 0 || dy !== 0) {
           const len = Math.hypot(dx, dy) || 1;
-          this.x = clamp(this.x + (dx / len) * this.def.speed, 40, world.width - 40);
+          const hypeMul = this.hypeTimer > 0 ? 1.28 : 1; // Andy's crowd-hype speed boost
+          this.x = clamp(this.x + (dx / len) * this.def.speed * hypeMul, 40, world.width - 40);
           // vertical is intentionally close to full speed -- dodging must feel immediate
-          this.y = clamp(this.y + (dy / len) * this.def.speed * 0.85, BAND_TOP, BAND_BOTTOM);
+          this.y = clamp(this.y + (dy / len) * this.def.speed * 0.85 * hypeMul, BAND_TOP, BAND_BOTTOM);
           if (dx !== 0) this.facing = dx > 0 ? 1 : -1;
           moving = true;
         }
@@ -785,8 +856,9 @@
           projectiles.push({
             x: this.x + this.facing * 24, y: this.y, vx: this.facing * 11,
             dmg: spec.dmg, friendly: true, life: 1800, color: '#ff8c3c', w: 18, h: 8, big: true,
+            riff: !!spec.riff,
           });
-          SFX.fire();
+          if (!spec.riff) SFX.fire(); // riff already played its own sound on activation
         } else {
           this.hitbox = {
             dmg: spec.dmg, range: spec.range, knock: spec.knock, knockdown: spec.knockdown,
@@ -1687,6 +1759,11 @@
     ctx.fillStyle = ready ? '#ffd23f' : '#fff';
     ctx.fillText(ready ? 'SPECIAL READY (L)' : 'SPECIAL', 186, 71);
 
+    if (p.hypeTimer > 0) {
+      ctx.fillStyle = Math.floor(p.t / 150) % 2 ? '#ffd23f' : '#fff';
+      ctx.fillText('HYPED UP', 186, 82);
+    }
+
     // score rolls up toward the real value -- arcade counters never snap
     scoreShown += (score - scoreShown) * 0.18;
     if (Math.abs(score - scoreShown) < 1) scoreShown = score;
@@ -1739,6 +1816,13 @@
 
     for (const d of drawables) {
       if (d === player) {
+        if (d.hypeTimer > 0) {
+          // "Welcome In" crowd-hype aura -- a warm ring under his feet
+          ctx.globalAlpha = 0.25 + Math.sin(d.t * 0.02) * 0.1;
+          ctx.strokeStyle = '#ffd23f'; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.ellipse(d.x - camX, d.y, 20, 7, 0, 0, Math.PI * 2); ctx.stroke();
+          ctx.globalAlpha = 1;
+        }
         drawSprite(ctx, d.x - camX, d.y, {
           facing: d.facing, scale: 1, spriteKey: d.def.spriteKey, tint: d.def.tint,
           glasses: d.def.glasses, accent: d.def.accent, pose: d.pose, t: d.t,
@@ -1824,7 +1908,18 @@
     }
 
     for (const p of projectiles) {
-      px(ctx, p.x - camX - p.w / 2, p.y - 52 - p.h / 2, p.w, p.h, p.color || '#fff');
+      const px_ = p.x - camX, py_ = p.y - 52;
+      if (p.riff) {
+        // a real guitar riff, drawn as a soundwave instead of a block
+        const dir = p.vx >= 0 ? 1 : -1;
+        for (let i = 0; i < 3; i++) {
+          const off = i * 9 * dir;
+          const wob = Math.sin(p.x * 0.15 + i * 2) * 6;
+          px(ctx, px_ - off - 3, py_ + wob - 2, 6, 4, i === 0 ? '#fff' : '#ff5a47');
+        }
+      } else {
+        px(ctx, px_ - p.w / 2, py_ - p.h / 2, p.w, p.h, p.color || '#fff');
+      }
     }
 
     for (const pt of particles) {
@@ -1913,7 +2008,7 @@
     if (Math.floor(t / 500) % 2 === 0) {
       ctx.font = 'bold 20px monospace';
       ctx.fillStyle = '#fff';
-      ctx.fillText('PRESS SPACE TO START', W / 2, 500);
+      ctx.fillText('WELCOME IN. PRESS SPACE TO START', W / 2, 500);
     }
     ctx.textAlign = 'left';
   }
@@ -2058,9 +2153,12 @@
     ctx.font = 'bold 22px monospace';
     ctx.fillStyle = '#ffd23f';
     ctx.fillText(CHAR_DEFS[selectedChar].name, W / 2, 160);
-    ctx.font = '15px monospace';
+    ctx.font = 'italic bold 16px monospace';
+    ctx.fillStyle = '#8fd3ff';
+    ctx.fillText(CHAR_DEFS[selectedChar].victory, W / 2, 188);
+    ctx.font = '14px monospace';
     ctx.fillStyle = '#fff';
-    wrapText('earns a spot at the table. FootClan Brawler complete — ready to submit for the Fantasy Footballers Listener League.', W / 2, 196, 720, 22);
+    wrapText('earns a spot at the table. FootClan Brawler complete — ready to submit for the Fantasy Footballers Listener League.', W / 2, 214, 720, 20);
 
     ctx.font = 'bold 24px monospace';
     ctx.fillStyle = '#ffd23f';
