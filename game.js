@@ -110,6 +110,8 @@
         setTimeout(() => { [110, 165].forEach((f) => tone(f, 0.14, 'sawtooth', 0.16)); }, 150);
         setTimeout(() => { [147, 220].forEach((f) => tone(f, 0.22, 'sawtooth', 0.18, 90)); }, 320);
       },
+      // every regular Mike hit lands as a muted guitar-body thwack, not a fist thud
+      guitarHit() { noise(0.08, 0.16, 1100); tone(180, 0.08, 'sawtooth', 0.14, 90); },
     };
   })();
 
@@ -119,7 +121,9 @@
   const keys = new Set();
   const justPressed = new Set();
   const lastTapAt = {};
+  const lastKeyDownAt = {};
   let doubleTapDir = 0, doubleTapAt = 0;
+  let jkComboReady = false, jkComboAt = 0;
 
   const HANDLED = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space',
     'KeyJ', 'KeyK', 'KeyL', 'KeyW', 'KeyA', 'KeyS', 'KeyD'];
@@ -135,6 +139,16 @@
         if (lastTapAt[dir] && now - lastTapAt[dir] < 260) { doubleTapDir = dir; doubleTapAt = now; }
         lastTapAt[dir] = now;
       }
+      // J+K near-simultaneous, detected here (not per-frame) so a human's two
+      // presses landing a frame or two apart -- or even the first one already
+      // having fired a solo jab -- still register as the signature-move input.
+      if (e.code === 'KeyJ' || e.code === 'KeyK') {
+        const other = e.code === 'KeyJ' ? 'KeyK' : 'KeyJ';
+        if (lastKeyDownAt[other] !== undefined && now - lastKeyDownAt[other] < 160) {
+          jkComboReady = true; jkComboAt = now;
+        }
+        lastKeyDownAt[e.code] = now;
+      }
     }
     keys.add(e.code);
     if (HANDLED.includes(e.code)) e.preventDefault();
@@ -147,6 +161,11 @@
       const d = doubleTapDir; doubleTapDir = 0; return d;
     }
     return 0;
+  }
+  function consumeJkCombo() {
+    if (jkComboReady && performance.now() - jkComboAt < 260) { jkComboReady = false; return true; }
+    jkComboReady = false;
+    return false;
   }
 
   // ============================================================
@@ -224,7 +243,7 @@
     return Promise.all(promises);
   }
 
-  function pickAnim(spriteKey, pose, progress, t, comboStep) {
+  function pickAnim(spriteKey, pose, progress, t, comboStep, variant) {
     const set = SPRITE_SETS[spriteKey];
     switch (pose) {
       case 'walk': {
@@ -242,10 +261,22 @@
         return { def: progress < 0.4 ? set.punch1 : set.punch2, frame: 0 };
       case 'kick': return { def: progress < 0.4 ? set.kick1 : set.kick2, frame: 0 };
       case 'dashatk': return { def: set.punch2, frame: 0 };
-      case 'jumpatk': return { def: set.kick2, frame: 0 };
+      // jump attacks read differently per host: Andy dives fist-first, Jason
+      // is mid-spin (rotation applied by the caller), Mike swings the guitar
+      // (the kick frame just gives his arms the right silhouette for it).
+      case 'jumpatk':
+        if (variant === 'andy') return { def: progress < 0.5 ? set.punch1 : set.punch2, frame: 0 };
+        if (variant === 'jason') return { def: set.kick1, frame: 0 };
+        return { def: set.kick2, frame: 0 };
       case 'grab': return { def: set.punch1, frame: 0 };
       case 'throw': return { def: set.kick1, frame: 0 };
       case 'special': return { def: set.special, frame: progress < 0.5 ? 0 : 1 };
+      // the J+K signature move: Andy's rapid-cycling flurry frames, Jason's
+      // leap-then-slam reusing the lunge strip, Mike's big overhead swing.
+      case 'signature':
+        if (variant === 'andy') return { def: Math.floor(t / 60) % 2 ? set.punch1 : set.punch2, frame: 0 };
+        if (variant === 'jason') return { def: set.special, frame: progress < 0.55 ? 0 : 1 };
+        return { def: set.punch2, frame: 0 };
       case 'hurt': return { def: set.hurt, frame: 0 };
       case 'knockdown': return { def: set.knockdown, frame: 0 };
       default: {
@@ -257,13 +288,47 @@
 
   const SPRITE_DISPLAY_SCALE = 3;
 
+  // Attack poses swing the guitar as a weapon; everything else keeps it slung.
+  const GUITAR_SWING_POSES = new Set(['punch', 'kick', 'dashatk', 'jumpatk', 'signature', 'special']);
+
+  function drawGuitar(ctx, scale, mode, progress) {
+    const s = scale;
+    ctx.save();
+    if (mode === 'slung') {
+      ctx.translate(-4 * s, -48 * s);
+      ctx.rotate(-0.55);
+      px(ctx, -3.5 * s, -16 * s, 7 * s, 30 * s, '#5a3018');   // neck
+      px(ctx, -3.5 * s, -16 * s, 7 * s, 4 * s, '#e8d9b8');    // headstock
+      px(ctx, -9 * s, 10 * s, 18 * s, 20 * s, '#a6521f');     // body
+      px(ctx, -3 * s, 17 * s, 6 * s, 6 * s, '#241408');       // sound hole
+    } else {
+      // windup (cocked back) -> strike (full extension forward) -> recover
+      const p = clamp(progress, 0, 1);
+      let ang;
+      if (p < 0.35) ang = -1.7 + (p / 0.35) * 0.5;
+      else if (p < 0.62) ang = -1.2 + ((p - 0.35) / 0.27) * 2.0;
+      else ang = 0.8 - ((p - 0.62) / 0.38) * 0.8;
+      ctx.translate(11 * s, -58 * s);
+      ctx.rotate(ang);
+      px(ctx, -3.5 * s, 0, 7 * s, 26 * s, '#5a3018');         // neck, grip end
+      px(ctx, -3.5 * s, -5 * s, 7 * s, 5 * s, '#e8d9b8');
+      px(ctx, -10 * s, 22 * s, 20 * s, 22 * s, '#c2551c');    // body -- the business end
+      px(ctx, -3 * s, 30 * s, 6 * s, 6 * s, '#241408');
+      ctx.strokeStyle = '#f2e9d0'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(-1.5 * s, 2); ctx.lineTo(-1.5 * s, 44 * s); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(1.5 * s, 2); ctx.lineTo(1.5 * s, 44 * s); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   function drawSprite(ctx, footX, footY, opts) {
     const {
       facing = 1, scale = 1, spriteKey = 'ranger', tint = '', pose = 'idle', t = 0, progress = 0,
-      hurt = false, jumpZ = 0, flash = false, glasses = false, comboStep = 0, spin = 0,
+      hurt = false, jumpZ = 0, flash = false, glasses = false, cap = false, guitar = false,
+      comboStep = 0, spin = 0, variant = null,
     } = opts;
 
-    const { def, frame } = pickAnim(spriteKey, pose, progress, t, comboStep);
+    const { def, frame } = pickAnim(spriteKey, pose, progress, t, comboStep, variant);
     const rec = IMAGES[def.src];
     if (!rec || !rec.loaded) return;
 
@@ -285,6 +350,8 @@
     if (facing < 0) ctx.scale(-1, 1);
     if (spin) ctx.rotate(spin);
 
+    if (guitar && !GUITAR_SWING_POSES.has(pose)) drawGuitar(ctx, scale, 'slung', progress);
+
     let filter = tint || '';
     if (flash) filter = (filter + ' brightness(2.6) saturate(0.15)').trim();
     else if (hurt) filter = (filter + ' brightness(1.8) saturate(0.4)').trim();
@@ -294,6 +361,14 @@
     ctx.filter = 'none';
 
     if (glasses) px(ctx, -8 * scale, -dispH + 10 * scale, 16 * scale, 3 * scale, '#141414');
+    if (cap) {
+      // oversized ball cap -- deliberately bigger than his head, classic sight gag
+      px(ctx, -14 * scale, -dispH - 3 * scale, 28 * scale, 11 * scale, '#1f3a8a');
+      px(ctx, -14 * scale, -dispH + 3 * scale, 28 * scale, 4 * scale, '#ffd23f');
+      px(ctx, facing >= 0 ? -4 * scale : -20 * scale, -dispH + 5 * scale, 20 * scale, 5 * scale, '#16296b');
+    }
+
+    if (guitar && GUITAR_SWING_POSES.has(pose)) drawGuitar(ctx, scale, 'swing', progress);
 
     if (pose === 'special') {
       ctx.globalAlpha = 0.2 + (0.5 + Math.sin(t * 0.03) * 0.5) * 0.25;
@@ -478,36 +553,46 @@
   const CHAR_DEFS = {
     andy: {
       name: 'Andy "Welcome In" Holloway',
-      tag: 'Fastest hands. His special hypes the room and speeds him up.',
-      spriteKey: 'ranger', tint: '', glasses: false, accent: '#ffd23f',
+      tag: 'Fastest hands. J+K unleashes the Zinger Flurry.',
+      spriteKey: 'ranger', tint: '', glasses: false, cap: true, accent: '#ffd23f',
       speed: 3.9, jumpPow: 13.5, maxHealth: 105,
       combo: comboSet(7, 8, 15),
       kick: { dmg: 12, range: 54, dur: 300, strike: 0.28, cd: 340, knock: 20, knockdown: true, heavy: true },
       special: { name: 'Welcome In!', cost: 30, dmg: 26, range: 105, cd: 700, aoe: true, voice: 'welcomeIn' },
+      // rapid-fire multi-hit jab burst -- fits "fastest hands" mechanically, not just numerically
+      signature: { name: 'Zinger Flurry', dur: 560, strike: 0.05, dmg: 5, range: 50, knock: 4,
+        multiHit: true, tickMs: 82, hitboxLife: 470, cd: 1300 },
       throwDmg: 20,
       catch: 'WELCOME IN!',
       victory: '"Welcome in" — to the Listener League.',
     },
     jason: {
       name: 'Jason "Mailbag" Moore',
-      tag: 'All-rounder. Special pulls a listener question and answers in character.',
+      tag: 'All-rounder. J+K is a leaping Impression Slam.',
       spriteKey: 'renegade', tint: 'hue-rotate(280deg) saturate(1.3)', glasses: false, accent: '#ffb703',
       speed: 3.4, jumpPow: 14.5, maxHealth: 115,
       combo: comboSet(8, 9, 17),
       kick: { dmg: 13, range: 56, dur: 310, strike: 0.28, cd: 360, knock: 22, knockdown: true, heavy: true },
       special: { name: '#FootClan Mailbag', cost: 35, dmg: 30, range: 150, cd: 800, aoe: true, voice: 'mailbag' },
+      // leaps, comes down with a wide AOE slam -- the only move in the game with airtime
+      signature: { name: 'Impression Slam', dur: 620, strike: 0.56, dmg: 22, range: 88, knock: 26,
+        knockdown: true, heavy: true, aoe: true, cd: 1400 },
       throwDmg: 23,
       catch: '#FOOTCLAN MAILBAG',
       victory: 'That one goes straight to the top of the Mailbag.',
     },
     mike: {
       name: 'Mike "The Fantasy Hitman" Wright',
-      tag: 'Heaviest hits. Special is a real guitar riff turned into a shockwave.',
-      spriteKey: 'ranger', tint: 'hue-rotate(190deg) saturate(0.55) brightness(0.7)', glasses: true, accent: '#ff3b3b',
+      tag: 'Heaviest hits, longest reach. J+K drops a Power Chord Smash.',
+      spriteKey: 'ranger', tint: 'hue-rotate(190deg) saturate(0.55) brightness(0.7)', glasses: true, guitar: true, accent: '#ff3b3b',
       speed: 3.0, jumpPow: 12.5, maxHealth: 135,
-      combo: comboSet(10, 11, 21),
-      kick: { dmg: 16, range: 56, dur: 330, strike: 0.30, cd: 400, knock: 26, knockdown: true, heavy: true },
+      // the guitar is a real weapon: longer reach on every melee hit than fists give Andy/Jason
+      combo: comboSet(10, 11, 21).map((h) => ({ ...h, range: h.range + 10 })),
+      kick: { dmg: 16, range: 66, dur: 330, strike: 0.30, cd: 400, knock: 26, knockdown: true, heavy: true },
       special: { name: 'The Riff', cost: 40, dmg: 38, range: 999, cd: 900, projectile: true, voice: 'riff' },
+      // one huge two-handed overhead smash -- biggest single number in the game
+      signature: { name: 'Power Chord Smash', dur: 480, strike: 0.40, dmg: 34, range: 76, knock: 32,
+        knockdown: true, heavy: true, cd: 1500 },
       throwDmg: 28,
       catch: 'DROP THE RIFF',
       victory: 'Cue the outro riff. The Hitman clocks out.',
@@ -620,6 +705,7 @@
       this.alive = true;
       this.hypeTimer = 0;      // Andy's "Welcome In" crowd-hype buff
       this.mailbagQ = '';      // Jason's current mailbag question, for the HUD callout
+      this.jkCd = 0;           // cooldown on the J+K signature move
     }
     get progress() { return this.poseDuration > 0 ? clamp(1 - this.poseTimer / this.poseDuration, 0, 1) : 1; }
     get busy() { return this.poseTimer > 0 && this.attackKind !== null; }
@@ -719,6 +805,7 @@
       else if (kind === 'dashatk') this.pose = 'dashatk';
       else if (kind === 'jumpatk') this.pose = 'jumpatk';
       else if (kind === 'special') this.pose = 'special';
+      else if (kind === 'signature') this.pose = 'signature';
       SFX.whiff();
     }
 
@@ -729,6 +816,7 @@
       this.specialCd = Math.max(0, this.specialCd - dt);
       this.dashCd = Math.max(0, this.dashCd - dt);
       this.hypeTimer = Math.max(0, this.hypeTimer - dt);
+      this.jkCd = Math.max(0, this.jkCd - dt);
       this.comboGrace = Math.max(0, this.comboGrace - dt);
       this.comboDisplayTimer = Math.max(0, this.comboDisplayTimer - dt);
       if (this.comboGrace <= 0 && this.attackKind !== 'combo') this.comboStep = 0;
@@ -769,7 +857,18 @@
       // ---- attack input ------------------------------------------------
       const canAct = !this.busy || this.cancelable;
       if (canAct) {
-        if (tapped('KeyJ')) {
+        const sig = this.def.signature;
+        if (consumeJkCombo() && this.jkCd <= 0 && this.jumpZ === 0) {
+          this.startAttack('signature', {
+            dmg: sig.dmg, range: sig.range, dur: sig.dur, strike: sig.strike, knock: sig.knock,
+            knockdown: sig.knockdown, heavy: sig.heavy, aoe: sig.aoe,
+            multiHit: sig.multiHit, tickMs: sig.tickMs, hitboxLife: sig.hitboxLife,
+          });
+          this.jkCd = sig.cd;
+          this.dashTimer = 0;
+          spawnPopup(this.x, this.y - 130, sig.name.toUpperCase(), '#fff', true);
+          if (sig.multiHit) SFX.dash(); else hitStopTimer = Math.max(hitStopTimer, 40);
+        } else if (tapped('KeyJ')) {
           if (this.jumpZ > 0) {
             this.startAttack('jumpatk', { dmg: this.def.combo[1].dmg + 4, range: 58, dur: 380, strike: 0.15, knock: 16, knockdown: true });
           } else if (this.dashTimer > 0) {
@@ -862,7 +961,8 @@
         } else {
           this.hitbox = {
             dmg: spec.dmg, range: spec.range, knock: spec.knock, knockdown: spec.knockdown,
-            aoe: spec.aoe, heavy: spec.heavy, life: 130, hitSet: new Set(),
+            aoe: spec.aoe, heavy: spec.heavy, life: spec.hitboxLife || 130, hitSet: new Set(),
+            multiHit: !!spec.multiHit, tickMs: spec.tickMs || 90, hitTimes: new Map(), age: 0,
           };
         }
       }
@@ -880,25 +980,32 @@
       const hb = this.hitbox;
       if (!hb) return;
       hb.life -= dt;
+      hb.age += dt;
       for (const en of enemies) {
-        if (!en.alive || en.dying || en.thrown || hb.hitSet.has(en)) continue;
+        if (!en.alive || en.dying || en.thrown) continue;
+        if (hb.multiHit) {
+          const last = hb.hitTimes.has(en) ? hb.hitTimes.get(en) : -9999;
+          if (hb.age - last < hb.tickMs) continue;
+        } else if (hb.hitSet.has(en)) continue;
+
         const depth = hb.aoe ? 90 : DEPTH_PLAYER_ATTACK;
         if (meleeHits(this.x, this.y, this.facing, en.x, en.y, hb.range, depth)
           || (hb.aoe && Math.abs(en.x - this.x) < hb.range && Math.abs(en.y - this.y) < 90)) {
-          hb.hitSet.add(en);
+          if (hb.multiHit) hb.hitTimes.set(en, hb.age); else hb.hitSet.add(en);
           en.takeDamage(hb.dmg, this.x, hb.knock, hb.knockdown);
-          this.meter = clamp(this.meter + (hb.heavy ? 12 : 7), 0, this.maxMeter);
+          this.meter = clamp(this.meter + (hb.heavy ? 12 : 5), 0, this.maxMeter);
           this.comboCount++;
           this.comboDisplayTimer = 1400;
           // deeper combos are worth more per hit -- the reason to keep the chain alive
           score += 10 * Math.min(this.comboCount, 10);
           if (stageStats && this.comboCount > stageStats.bestCombo) stageStats.bestCombo = this.comboCount;
-          hitStopTimer = Math.max(hitStopTimer, hb.heavy ? 95 : 62);
+          hitStopTimer = Math.max(hitStopTimer, hb.heavy ? 95 : (hb.multiHit ? 30 : 62));
           if (hb.heavy) { shakeTimer = Math.max(shakeTimer, 160); SFX.heavy(); }
+          else if (this.charKey === 'mike') SFX.guitarHit();
           else SFX.hit();
           spawnHit(en.x, en.y - 58, '#ffd23f', hb.heavy ? 14 : 8, hb.heavy ? 1.6 : 1);
           spawnImpactRing(en.x, en.y - 58, '#fff');
-          if (!hb.aoe) { this.hitbox = null; break; }
+          if (!hb.aoe && !hb.multiHit) { this.hitbox = null; break; }
         }
       }
       if (hb.life <= 0) this.hitbox = null;
@@ -1384,7 +1491,7 @@
         wave(1800, [['formerchamp', 2250, 400]]),
       ],
     },
-    { name: 'The Gate of the Runner-Up', theme: 'boss', width: 1400, boss: true, waves: [] },
+    { name: 'The Gate of Number Twooooo', theme: 'boss', width: 1400, boss: true, waves: [] },
   ];
 
   // ============================================================
@@ -1451,7 +1558,7 @@
 
     if (lvl.boss) {
       boss = new Enemy('runnerup', world.width * 0.65, GROUND_Y, {
-        name: 'The Runner-Up', hp: 340, speed: 1.3, dmg: 10, atkRange: 90, atkCd: 1400, size: 4, customAI: true,
+        name: 'NUMBER TWOOOOO', hp: 340, speed: 1.3, dmg: 10, atkRange: 90, atkCd: 1400, size: 4, customAI: true,
       });
       boss.phase = 1; boss.enraged = false; boss.attackTelegraph = null;
       boss.slamCd = 2400; boss.fireCd = 1600; boss.summonCd2 = 7000;
@@ -1538,7 +1645,7 @@
       boss.attackTelegraph = 'slam';
       boss.telegraphTimer = 560;
       boss.sx = 0.86; boss.sy = 1.20;   // stretch up before he comes down
-      if (Math.random() < 0.45) boss.say('RUNNER-UP NO MORE');
+      if (Math.random() < 0.45) boss.say('I AM NUMBER TWOOOOO NO MORE');
     } else if (boss.fireCd <= 0) {
       boss.fireCd = boss.enraged ? 1500 : 2300;
       // lock the aim NOW, fire after the telegraph -- so stepping off the
@@ -1739,7 +1846,7 @@
     ctx.strokeRect(20, 14, 40, 40);
     ctx.save();
     ctx.beginPath(); ctx.rect(20, 14, 40, 40); ctx.clip();
-    drawSprite(ctx, 40, 54, { facing: 1, scale: 1.05, spriteKey: p.def.spriteKey, tint: p.def.tint, glasses: p.def.glasses, pose: 'idle', t: p.t });
+    drawSprite(ctx, 40, 54, { facing: 1, scale: 1.05, spriteKey: p.def.spriteKey, tint: p.def.tint, glasses: p.def.glasses, cap: p.def.cap, guitar: p.def.guitar, pose: 'idle', t: p.t });
     ctx.restore();
 
     px(ctx, 66, 16, 174, 16, '#111');
@@ -1796,7 +1903,7 @@
       px(ctx, W / 2 - 198, 18, 396 * clamp(boss.hp / boss.maxHp, 0, 1), 12, boss.enraged ? '#ff3b3b' : '#ff8c3c');
       ctx.textAlign = 'center';
       ctx.fillStyle = '#fff';
-      ctx.fillText('THE RUNNER-UP', W / 2, 12);
+      ctx.fillText('NUMBER TWOOOOO', W / 2, 12);
       ctx.textAlign = 'left';
     }
     ctx.restore();
@@ -1823,12 +1930,19 @@
           ctx.beginPath(); ctx.ellipse(d.x - camX, d.y, 20, 7, 0, 0, Math.PI * 2); ctx.stroke();
           ctx.globalAlpha = 1;
         }
-        drawSprite(ctx, d.x - camX, d.y, {
-          facing: d.facing, scale: 1, spriteKey: d.def.spriteKey, tint: d.def.tint,
-          glasses: d.def.glasses, accent: d.def.accent, pose: d.pose, t: d.t,
-          progress: d.progress, comboStep: d.comboStep - 1,
-          hurt: d.invuln > 0 && Math.floor(d.t / 70) % 2 === 0, jumpZ: d.jumpZ,
-        });
+        {
+          // Jason's Impression Slam has airtime purely for show -- it never
+          // touches the real jump/gravity system, just this render-time arc.
+          const leapZ = (d.pose === 'signature' && d.charKey === 'jason')
+            ? Math.sin(clamp(d.progress, 0, 1) * Math.PI) * 46 : d.jumpZ;
+          drawSprite(ctx, d.x - camX, d.y, {
+            facing: d.facing, scale: 1, spriteKey: d.def.spriteKey, tint: d.def.tint,
+            glasses: d.def.glasses, cap: d.def.cap, guitar: d.def.guitar, accent: d.def.accent,
+            pose: d.pose, t: d.t, variant: d.charKey,
+            progress: d.progress, comboStep: d.comboStep - 1,
+            hurt: d.invuln > 0 && Math.floor(d.t / 70) % 2 === 0, jumpZ: leapZ,
+          });
+        }
       } else if (d === boss) {
         drawRunnerUpBoss(ctx, boss, camX);
       } else if (d.def.flyer) {
@@ -1996,14 +2110,15 @@
     ctx.fillStyle = '#ffd23f';
     ctx.fillText('a retro side-scrolling fighter starring the Fantasy Footballers', W / 2, 172);
 
-    drawSprite(ctx, W / 2 - 220, 385, { facing: 1, scale: 2.2, spriteKey: CHAR_DEFS.andy.spriteKey, tint: CHAR_DEFS.andy.tint, pose: 'walk', t });
-    drawSprite(ctx, W / 2, 385, { facing: 1, scale: 2.2, spriteKey: CHAR_DEFS.jason.spriteKey, tint: CHAR_DEFS.jason.tint, pose: 'punch', t: t + 300, progress: (t % 800) / 800, comboStep: 0 });
-    drawSprite(ctx, W / 2 + 220, 385, { facing: -1, scale: 2.2, spriteKey: CHAR_DEFS.mike.spriteKey, tint: CHAR_DEFS.mike.tint, glasses: true, pose: 'kick', t, progress: ((t + 400) % 800) / 800 });
+    drawSprite(ctx, W / 2 - 220, 385, { facing: 1, scale: 2.2, spriteKey: CHAR_DEFS.andy.spriteKey, tint: CHAR_DEFS.andy.tint, cap: true, variant: 'andy', pose: 'walk', t });
+    drawSprite(ctx, W / 2, 385, { facing: 1, scale: 2.2, spriteKey: CHAR_DEFS.jason.spriteKey, tint: CHAR_DEFS.jason.tint, variant: 'jason', pose: 'punch', t: t + 300, progress: (t % 800) / 800, comboStep: 0 });
+    drawSprite(ctx, W / 2 + 220, 385, { facing: -1, scale: 2.2, spriteKey: CHAR_DEFS.mike.spriteKey, tint: CHAR_DEFS.mike.tint, glasses: true, guitar: true, variant: 'mike', pose: 'kick', t, progress: ((t + 400) % 800) / 800 });
 
     ctx.font = '12px monospace';
     ctx.fillStyle = '#8fd3ff';
     ctx.fillText('MOVE arrows/WASD   PUNCH J (x3 combo)   HEAVY K   SPECIAL L   JUMP space   DASH double-tap', W / 2, 440);
-    ctx.fillText('Stun an enemy, walk in and press J to GRAB — then K to throw them into the pack.', W / 2, 460);
+    ctx.fillText('Press J+K together for a signature move — different for every host.', W / 2, 458);
+    ctx.fillText('Stun an enemy, walk in and press J to GRAB — then K to throw them into the pack.', W / 2, 476);
 
     if (Math.floor(t / 500) % 2 === 0) {
       ctx.font = 'bold 20px monospace';
@@ -2038,6 +2153,7 @@
       const cd = CHAR_DEFS[k];
       drawSprite(ctx, cx, 400, {
         facing: 1, scale: 2.4, spriteKey: cd.spriteKey, tint: cd.tint, glasses: cd.glasses,
+        cap: cd.cap, guitar: cd.guitar, variant: k,
         pose: active ? 'punch' : 'idle', t: tt, progress: active ? (tt % 800) / 800 : 0, comboStep: 0,
       });
       ctx.globalAlpha = 1;
@@ -2051,7 +2167,9 @@
     ctx.fillText(def.tag, W / 2, 484);
     ctx.font = '11px monospace';
     ctx.fillStyle = '#8fd3ff';
-    ctx.fillText(`SPD ${def.speed}   HP ${def.maxHealth}   COMBO ${def.combo.map(c => c.dmg).join('/')}   THROW ${def.throwDmg}   ${def.special.name}`, W / 2, 506);
+    ctx.fillText(`SPD ${def.speed}   HP ${def.maxHealth}   COMBO ${def.combo.map(c => c.dmg).join('/')}   THROW ${def.throwDmg}`, W / 2, 500);
+    ctx.fillStyle = '#ff8fc9';
+    ctx.fillText(`SPECIAL (L): ${def.special.name}     J+K: ${def.signature.name}`, W / 2, 516);
     ctx.textAlign = 'left';
   }
 
@@ -2149,7 +2267,7 @@
     ctx.textAlign = 'center';
     ctx.fillStyle = '#fff';
     ctx.font = 'bold 32px monospace';
-    ctx.fillText('THE RUNNER-UP FALLS!', W / 2, 120);
+    ctx.fillText('NUMBER TWOOOOO FALLS!', W / 2, 120);
     ctx.font = 'bold 22px monospace';
     ctx.fillStyle = '#ffd23f';
     ctx.fillText(CHAR_DEFS[selectedChar].name, W / 2, 160);
@@ -2170,6 +2288,7 @@
     const cd = CHAR_DEFS[selectedChar];
     drawSprite(ctx, W / 2, 450, {
       facing: 1, scale: 2.6, spriteKey: cd.spriteKey, tint: cd.tint, glasses: cd.glasses,
+      cap: cd.cap, guitar: cd.guitar, variant: selectedChar,
       accent: cd.accent, pose: 'special', t, progress: (t % 700) / 700,
     });
 

@@ -10,6 +10,7 @@ Open `index.html` in any browser (or visit the hosted link once deployed).
 - Move: Arrow keys / WASD — up/down changes your depth in the lane
 - Punch: J — tap up to 3 times for a combo string; the third hit knocks down
 - Heavy: K — slower, knocks down on its own
+- **J+K together: signature move** — a different, mechanically distinct attack for every host (see below)
 - Special: L — costs meter, brief invincibility (panic button)
 - Jump: Space — press J in the air for a dive kick
 - Dash: double-tap left/right — press J while dashing for a shoulder charge
@@ -20,9 +21,24 @@ Open `index.html` in any browser (or visit the hosted link once deployed).
 (about 20px) slips the line. The boss shows a red aim line during his windup;
 step off it before he fires.
 
+## Three genuinely different movesets
+
+Not just different numbers — different mechanics, so each host actually plays
+differently:
+
+| Character | J+K Signature | What makes it distinct |
+| --- | --- | --- |
+| Andy | **Zinger Flurry** | Multi-hit — ticks damage repeatedly for as long as an enemy stays in range. Fastest character, fastest move. |
+| Jason | **Impression Slam** | Leaps into the air (visual only, doesn't touch the jump system) and comes down in a wide AOE that can hit multiple enemies at once. |
+| Mike | **Power Chord Smash** | One devastating single-target hit — the biggest number in the game, with the guitar's extended reach. |
+
+Mike's guitar isn't cosmetic: every one of his melee attacks has longer range
+than Andy's or Jason's fists, and it visibly swings as the weapon during every
+attack pose. Andy wears an oversized ball cap in every pose, on and off the field.
+
 ## Story
 
-Fight through four stages themed on real FootClan franchises — the UDK War Room, the Fantasy Vulture Swamp, the DFS & Betting Floor, and the Megalabowl Colosseum — before facing the final boss: **The Runner-Up**, a giant sentient "2" wearing glasses who has finished second in the Megalabowl every year and now guards the gate to the Listener League.
+Fight through four stages themed on real FootClan franchises — the UDK War Room, the Fantasy Vulture Swamp, the DFS & Betting Floor, and the Megalabowl Colosseum — before facing the final boss: **NUMBER TWOOOOO**, a giant sentient "2" wearing glasses who has finished second in the Megalabowl every year and now guards the gate to the Listener League.
 
 ## The enemies actually play their names
 
