@@ -54,165 +54,131 @@
   function choice(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 
   // ============================================================
-  // Procedural pixel-block sprite drawing
+  // Sprite drawing (real hand-drawn CC0 pixel-art frames)
   // ============================================================
   function px(ctx, x, y, w, h, color) {
     ctx.fillStyle = color;
     ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h));
   }
 
-  // limb segment: pivot -> rotated rect extending "down" (ang 0 = straight down, + = swings toward facing/+X)
-  function limbSeg(ctx, x, y, len, w, ang, color) {
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.rotate(ang);
-    px(ctx, -w / 2, -1, w, len + 1, color);
-    ctx.restore();
-    return { x: x + Math.sin(ang) * len, y: y + Math.cos(ang) * len };
+  // Two free "Brawler Series" rigs by chasersgaming (CC0, opengameart.org),
+  // explicitly built in the Double Dragon / Streets of Rage mold. All frames
+  // in a rig share the same pixel height, so only width varies per pose.
+  const SPRITE_SETS = {
+    ranger: {
+      idle: { src: 'assets/ranger/idle_strip4.png', frames: 4, fps: 4.5 },
+      walk: { src: 'assets/ranger/walk_strip4.png', frames: 4, fps: 9 },
+      punch1: { src: 'assets/ranger/punch_1.png', frames: 1 },
+      punch2: { src: 'assets/ranger/punch_2.png', frames: 1 },
+      kick1: { src: 'assets/ranger/kick_1.png', frames: 1 },
+      kick2: { src: 'assets/ranger/kick_2.png', frames: 1 },
+      hurt: { src: 'assets/ranger/hurt.png', frames: 1 },
+      knockdown: { src: 'assets/ranger/knockdown.png', frames: 1 },
+      special: { src: 'assets/ranger/special_strip2.png', frames: 2, fps: 6 },
+    },
+    renegade: {
+      idle: { src: 'assets/renegade/idle_strip4.png', frames: 4, fps: 4.5 },
+      walk: { src: 'assets/renegade/walk_strip4.png', frames: 4, fps: 9 },
+      punch1: { src: 'assets/renegade/punch_1.png', frames: 1 },
+      punch2: { src: 'assets/renegade/punch_2.png', frames: 1 },
+      kick1: { src: 'assets/renegade/kick_1.png', frames: 1 },
+      kick2: { src: 'assets/renegade/kick_2.png', frames: 1 },
+      hurt: { src: 'assets/renegade/hurt.png', frames: 1 },
+      knockdown: { src: 'assets/renegade/knockdown.png', frames: 1 },
+      special: { src: 'assets/renegade/special_strip2.png', frames: 2, fps: 6 },
+    },
+  };
+
+  const IMAGES = {};
+  function loadSprites() {
+    const promises = [];
+    for (const setKey in SPRITE_SETS) {
+      for (const animKey in SPRITE_SETS[setKey]) {
+        const def = SPRITE_SETS[setKey][animKey];
+        if (IMAGES[def.src]) continue;
+        const img = new Image();
+        const rec = { img, loaded: false, frameW: 0, frameH: 0 };
+        IMAGES[def.src] = rec;
+        promises.push(new Promise((resolve) => {
+          img.onload = () => {
+            rec.frameW = img.naturalWidth / def.frames;
+            rec.frameH = img.naturalHeight;
+            rec.loaded = true;
+            resolve();
+          };
+          img.onerror = resolve; // never hang the loading screen on one bad file
+        }));
+        img.src = def.src;
+      }
+    }
+    return Promise.all(promises);
   }
-  function easeOutQuad(t) { return 1 - (1 - t) * (1 - t); }
-  function easeInQuad(t) { return t * t; }
 
-  // Draws an articulated retro humanoid, Streets-of-Rage-proportioned, with real
-  // windup/strike/recover phases for punch & kick instead of a static pose.
-  // footX/footY = ground contact point. opts.progress = 0..1 through the current pose.
-  function drawFigure(ctx, footX, footY, opts) {
+  function pickAnim(spriteKey, pose, progress, t) {
+    const set = SPRITE_SETS[spriteKey];
+    if (pose === 'walk') {
+      const def = set.walk;
+      return { def, frame: Math.floor((t / 1000) * def.fps) % def.frames };
+    }
+    if (pose === 'punch') return { def: progress < 0.42 ? set.punch1 : set.punch2, frame: 0 };
+    if (pose === 'kick') return { def: progress < 0.42 ? set.kick1 : set.kick2, frame: 0 };
+    if (pose === 'special') return { def: set.special, frame: progress < 0.5 ? 0 : 1 };
+    if (pose === 'hurt') return { def: set.hurt, frame: 0 };
+    if (pose === 'knockdown') return { def: set.knockdown, frame: 0 };
+    const def = set.idle;
+    return { def, frame: Math.floor((t / 1000) * def.fps) % def.frames };
+  }
+
+  const SPRITE_DISPLAY_SCALE = 3;
+
+  // Draws a real pixel-art brawler frame. footX/footY = ground contact point.
+  // tint is a CSS filter string (hue-rotate/saturate/brightness) used to turn
+  // one shared rig into a distinct-looking character -- period-authentic
+  // palette-swapping, same trick these games used on real hardware.
+  function drawSprite(ctx, footX, footY, opts) {
     const {
-      facing = 1, scale = 1, palette, pose = 'idle', t = 0, progress = 0,
-      hurt = false, jumpZ = 0, flash = false, ko = false
+      facing = 1, scale = 1, spriteKey = 'ranger', tint = '', pose = 'idle', t = 0, progress = 0,
+      hurt = false, jumpZ = 0, flash = false, glasses = false,
     } = opts;
-    const s = scale;
-    const baseY = footY - jumpZ;
+
+    const { def, frame } = pickAnim(spriteKey, pose, progress, t);
+    const rec = IMAGES[def.src];
+    if (!rec || !rec.loaded) return;
+
+    const s = scale * SPRITE_DISPLAY_SCALE;
+    const dispW = rec.frameW * s, dispH = rec.frameH * s;
 
     ctx.save();
-    ctx.translate(footX, baseY);
+    ctx.translate(footX, footY - jumpZ);
     if (facing < 0) ctx.scale(-1, 1);
-    if (ko) { ctx.rotate(Math.PI / 2); ctx.translate(-38 * s, 0); }
 
-    // shadow (stays upright even if character is knocked down)
-    ctx.save();
-    if (ko) ctx.rotate(-Math.PI / 2);
     ctx.globalAlpha = 0.35;
     ctx.beginPath();
-    ctx.ellipse(ko ? 20 * s : 0, 2, 15 * s, 5 * s, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, 2, 15 * scale, 5 * scale, 0, 0, Math.PI * 2);
     ctx.fillStyle = '#000';
     ctx.fill();
     ctx.globalAlpha = 1;
-    ctx.restore();
 
-    if (flash) ctx.filter = 'brightness(2.4) saturate(0.3)';
-    else if (hurt) ctx.filter = 'brightness(1.7) saturate(0.5) hue-rotate(-10deg)';
+    let filter = tint || '';
+    if (flash) filter = (filter + ' brightness(2.4) saturate(0.2)').trim();
+    else if (hurt) filter = (filter + ' brightness(1.8) saturate(0.4)').trim();
+    if (filter) ctx.filter = filter;
 
-    const HIP_Y = -36 * s, SHOULDER_Y = -66 * s, HEAD_Y = -94 * s;
-    const THIGH = 19 * s, SHIN = 18 * s, UPPER_ARM = 15 * s, FOREARM = 14 * s;
-    const LEG_W = 9 * s, ARM_W = 7.5 * s;
+    ctx.drawImage(rec.img, frame * rec.frameW, 0, rec.frameW, rec.frameH, -dispW / 2, -dispH, dispW, dispH);
+    ctx.filter = 'none';
 
-    let bodyLean = 0, hipShift = 0;
-    let legA = { thigh: 0.05, shin: 0.06 }, legB = { thigh: -0.05, shin: -0.02 };
-    let armA = { upper: 0.18, fore: 0.32 }, armB = { upper: -0.18, fore: -0.28 };
-    let bob = 0;
-
-    if (pose === 'walk') {
-      const cyc = t * 0.018;
-      bob = Math.abs(Math.sin(cyc)) * 2.4 * s;
-      const swing = 0.62;
-      legA.thigh = Math.sin(cyc) * swing;
-      legA.shin = Math.max(0, -Math.sin(cyc + 0.7)) * 0.7 + 0.08;
-      legB.thigh = Math.sin(cyc + Math.PI) * swing;
-      legB.shin = Math.max(0, -Math.sin(cyc + Math.PI + 0.7)) * 0.7 + 0.08;
-      armA.upper = -legA.thigh * 0.6; armA.fore = 0.3 + Math.abs(legA.thigh) * 0.2;
-      armB.upper = -legB.thigh * 0.6; armB.fore = 0.3 + Math.abs(legB.thigh) * 0.2;
-    } else if (pose === 'punch') {
-      // 0-0.32 windup (pull back), 0.32-0.58 strike (full extension), 0.58-1 recover
-      if (progress < 0.32) {
-        const p = easeOutQuad(progress / 0.32);
-        armA.upper = -0.55 - p * 0.5; armA.fore = -1.3 - p * 0.5;
-        bodyLean = -0.05 * p; hipShift = -2 * s * p;
-      } else if (progress < 0.58) {
-        const p = easeOutQuad((progress - 0.32) / 0.26);
-        armA.upper = -1.05 + p * 1.45; armA.fore = -1.8 + p * 2.05;
-        bodyLean = -0.05 + 0.14 * p; hipShift = -2 * s + 5 * s * p;
-      } else {
-        const p = easeInQuad((progress - 0.58) / 0.42);
-        armA.upper = 0.4 - p * 0.22; armA.fore = 0.25 - p * 0.07;
-        bodyLean = 0.09 - 0.09 * p; hipShift = 3 * s - 3 * s * p;
-      }
-      legA.thigh = 0.12 + hipShift * 0.02; legB.thigh = -0.08;
-    } else if (pose === 'kick') {
-      if (progress < 0.3) {
-        const p = easeOutQuad(progress / 0.3);
-        legA.thigh = -0.3 * p; legA.shin = 0.9 * p;
-        bodyLean = -0.1 * p; armA.upper = 0.5 * p; armB.upper = -0.6 * p;
-      } else if (progress < 0.6) {
-        const p = easeOutQuad((progress - 0.3) / 0.3);
-        legA.thigh = -0.3 + p * 1.5; legA.shin = 0.9 - p * 0.75;
-        bodyLean = -0.1 - 0.12 * p; armA.upper = 0.5 - p * 0.2; armB.upper = -0.6 + p * 0.1;
-      } else {
-        const p = easeInQuad((progress - 0.6) / 0.4);
-        legA.thigh = 1.2 - p * 1.15; legA.shin = 0.15 - p * 0.09;
-        bodyLean = -0.22 + 0.22 * p; armA.upper = 0.3 - p * 0.12; armB.upper = -0.5 + p * 0.32;
-      }
-      legB.thigh = -0.12; legB.shin = 0.15;
-    } else if (pose === 'special') {
-      const glow = 0.5 + Math.sin(t * 0.03) * 0.5;
-      armA.upper = -0.7; armA.fore = -1.5;
-      armB.upper = 0.7; armB.fore = 1.5;
-      bodyLean = Math.sin(t * 0.02) * 0.05;
+    if (glasses) px(ctx, -8 * scale, -dispH + 10 * scale, 16 * scale, 3 * scale, '#141414');
+    if (pose === 'special') {
       ctx.save();
-      ctx.globalAlpha = 0.25 + glow * 0.25;
+      ctx.globalAlpha = 0.2 + (0.5 + Math.sin(t * 0.03) * 0.5) * 0.2;
       ctx.beginPath();
-      ctx.arc(0, SHOULDER_Y, 30 * s, 0, Math.PI * 2);
-      ctx.fillStyle = palette.accent;
+      ctx.arc(0, -dispH * 0.6, 26 * scale, 0, Math.PI * 2);
+      ctx.fillStyle = opts.accent || '#ffd23f';
       ctx.fill();
       ctx.restore();
-    } else if (pose === 'hurt') {
-      bodyLean = -0.14; hipShift = -3 * s;
-      armA.upper = -0.5; armB.upper = 0.4;
-      legA.thigh = -0.1; legB.thigh = 0.15;
     }
 
-    ctx.save();
-    ctx.translate(hipShift, -bob);
-    ctx.rotate(bodyLean);
-
-    // back leg
-    const kneeB = limbSeg(ctx, -6 * s, HIP_Y, THIGH, LEG_W, legB.thigh, palette.pants);
-    limbSeg(ctx, kneeB.x, kneeB.y, SHIN, LEG_W * 0.85, legB.thigh + legB.shin, palette.shoe || shade(palette.pants, -20));
-    // torso (jacket-style: shoulders wide, waist narrower, belt band)
-    px(ctx, -13 * s, SHOULDER_Y, 26 * s, 30 * s, palette.shirt);
-    px(ctx, -13 * s, HIP_Y - 6 * s, 26 * s, 6 * s, shade(palette.shirt, -25));
-    if (palette.accent) { px(ctx, -13 * s, SHOULDER_Y, 26 * s, 4 * s, palette.accent); }
-    // back arm
-    const elbowB = limbSeg(ctx, -13 * s, SHOULDER_Y + 4 * s, UPPER_ARM, ARM_W, armB.upper, palette.shirt);
-    const handB = limbSeg(ctx, elbowB.x, elbowB.y, FOREARM, ARM_W * 0.85, armB.upper + armB.fore, palette.skin);
-    px(ctx, handB.x - 4 * s, handB.y - 4 * s, 8 * s, 8 * s, palette.skin);
-
-    // front leg
-    const kneeA = limbSeg(ctx, 6 * s, HIP_Y, THIGH, LEG_W, legA.thigh, palette.pants);
-    limbSeg(ctx, kneeA.x, kneeA.y, SHIN, LEG_W * 0.85, legA.thigh + legA.shin, palette.shoe || shade(palette.pants, -20));
-
-    // head
-    const headY = HEAD_Y;
-    px(ctx, -9 * s, headY, 18 * s, 16 * s, palette.skin);
-    px(ctx, -10 * s, headY - 4 * s, 20 * s, 6 * s, palette.hair);
-    if (palette.glasses) px(ctx, -8 * s, headY + 6 * s, 16 * s, 3 * s, '#1a1a1a');
-
-    // front arm (drawn after head so punches read on top)
-    const elbowA = limbSeg(ctx, 13 * s, SHOULDER_Y + 4 * s, UPPER_ARM, ARM_W, armA.upper, pose === 'special' ? palette.accent : palette.shirt);
-    const fistColor = pose === 'special' ? palette.accent : palette.skin;
-    const handA = limbSeg(ctx, elbowA.x, elbowA.y, FOREARM, ARM_W * 0.85, armA.upper + armA.fore, fistColor);
-    px(ctx, handA.x - 4.5 * s, handA.y - 4.5 * s, 9 * s, 9 * s, fistColor);
-
-    ctx.restore(); // bodyLean/hipShift/bob
-    ctx.filter = 'none';
     ctx.restore();
-  }
-
-  function shade(hex, amt) {
-    const n = parseInt(hex.slice(1), 16);
-    let r = (n >> 16) + amt, g = ((n >> 8) & 0xff) + amt, b = (n & 0xff) + amt;
-    r = clamp(r, 0, 255); g = clamp(g, 0, 255); b = clamp(b, 0, 255);
-    return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
   }
 
   function drawVulture(ctx, x, y, t, facing) {
@@ -341,7 +307,7 @@
     andy: {
       name: 'Andy "The Spitballer" Holloway',
       tag: 'Fast rushdown. Wins with volume of jabs, not power.',
-      palette: { skin: '#e8b98c', shirt: '#2f6fed', pants: '#25334f', hair: '#4a3222', accent: '#ffd23f', glasses: false },
+      spriteKey: 'ranger', tint: '', glasses: false, accent: '#ffd23f',
       speed: 3.6, jumpPow: 13, maxHealth: 100,
       punch: { dmg: 6, range: 42, cd: 220, stun: 200 },
       kick: { dmg: 9, range: 46, cd: 380, stun: 260 },
@@ -350,7 +316,7 @@
     jason: {
       name: 'Jason "The Impressionist" Moore',
       tag: 'All-rounder. Special cycles through wild voices.',
-      palette: { skin: '#d9a679', shirt: '#e0483a', pants: '#2a2a2a', hair: '#1a1a1a', accent: '#ffb703', glasses: false },
+      spriteKey: 'renegade', tint: 'hue-rotate(280deg) saturate(1.3)', glasses: false, accent: '#ffb703',
       speed: 3.1, jumpPow: 14, maxHealth: 110,
       punch: { dmg: 8, range: 44, cd: 260, stun: 220 },
       kick: { dmg: 10, range: 48, cd: 400, stun: 280 },
@@ -359,7 +325,7 @@
     mike: {
       name: 'Mike "The Hitman" Wright',
       tag: 'Slow but devastating. Ranged special.',
-      palette: { skin: '#c99a72', shirt: '#1f1f1f', pants: '#3a3a3a', hair: '#0d0d0d', accent: '#ff3b3b', glasses: true },
+      spriteKey: 'ranger', tint: 'hue-rotate(190deg) saturate(0.55) brightness(0.7)', glasses: true, accent: '#ff3b3b',
       speed: 2.5, jumpPow: 12, maxHealth: 130,
       punch: { dmg: 10, range: 44, cd: 300, stun: 260 },
       kick: { dmg: 13, range: 48, cd: 460, stun: 320 },
@@ -369,28 +335,28 @@
 
   const ENEMY_DEFS = {
     draftee: { name: 'Rogue Mock-Draftee', hp: 22, speed: 1.6, dmg: 5, atkRange: 40, atkCd: 1000, xp: 5, size: 1,
-      palette: { skin: '#d1a679', shirt: '#5a5a5a', pants: '#333', hair: '#222', accent: '#888' } },
+      spriteKey: 'renegade', tint: 'saturate(0.6) brightness(0.85)', projColor: '#aaa' },
     zombie: { name: 'Waiver-Wire Zombie', hp: 34, speed: 0.9, dmg: 7, atkRange: 38, atkCd: 1300, xp: 8, size: 1.05,
-      palette: { skin: '#8fae7c', shirt: '#4a5c3a', pants: '#2c3722', hair: '#333', accent: '#6a8a52' } },
+      spriteKey: 'renegade', tint: 'hue-rotate(80deg) saturate(0.8) brightness(0.7)', projColor: '#6a8a52' },
     vulture: { name: 'Stat-Vulture', hp: 18, speed: 2.4, dmg: 5, atkRange: 30, atkCd: 900, xp: 6, size: 1, flyer: true },
     bookie: { name: 'Shady Bookie', hp: 26, speed: 1.9, dmg: 6, atkRange: 40, atkCd: 950, xp: 6, size: 1,
-      palette: { skin: '#c99a72', shirt: '#2a2a44', pants: '#1a1a2a', hair: '#111', accent: '#ffd23f' } },
+      spriteKey: 'ranger', tint: 'hue-rotate(250deg) saturate(0.9) brightness(0.8)', projColor: '#ffd23f' },
     roller: { name: 'Dice Roller', hp: 20, speed: 1.7, dmg: 5, atkRange: 220, atkCd: 1600, xp: 6, size: 1, ranged: true,
-      palette: { skin: '#c99a72', shirt: '#732a8a', pants: '#2a1a3a', hair: '#111', accent: '#ff4fa3' } },
+      spriteKey: 'ranger', tint: 'hue-rotate(300deg) saturate(1.2)', projColor: '#ff4fa3' },
     rival: { name: 'Rival FootClan Champ', hp: 46, speed: 2.1, dmg: 8, atkRange: 42, atkCd: 800, xp: 10, size: 1.08,
-      palette: { skin: '#d1a679', shirt: '#8a4a2a', pants: '#3a2314', hair: '#2a1a10', accent: '#d98f3c' } },
+      spriteKey: 'renegade', tint: 'hue-rotate(330deg) saturate(1.3) brightness(0.9)', projColor: '#d98f3c' },
     talker: { name: 'Trash Talker', hp: 30, speed: 1.8, dmg: 5, atkRange: 240, atkCd: 1700, xp: 8, size: 1, ranged: true,
-      palette: { skin: '#d1a679', shirt: '#3a3a3a', pants: '#1a1a1a', hair: '#222', accent: '#ff8c3c' } },
+      spriteKey: 'ranger', tint: 'hue-rotate(170deg) saturate(0.4) brightness(0.75)', projColor: '#ff8c3c' },
   };
 
   const MINIBOSS_DEFS = {
     lateround: { name: 'The Late-Round QB', hp: 85, speed: 1.4, dmg: 9, atkRange: 220, atkCd: 1100, xp: 40, size: 1.5, ranged: true, miniboss: true,
-      palette: { skin: '#d1a679', shirt: '#1f3a8a', pants: '#152452', hair: '#111', accent: '#f4c542' } },
+      spriteKey: 'renegade', tint: 'hue-rotate(220deg) saturate(1.4)', projColor: '#f4c542' },
     alphavulture: { name: 'Alpha Vulture', hp: 100, speed: 2.0, dmg: 8, atkRange: 40, atkCd: 900, xp: 45, size: 1.8, flyer: true, summons: true, miniboss: true },
     cardshark: { name: 'The Card Shark', hp: 130, speed: 2.0, dmg: 9, atkRange: 200, atkCd: 1200, xp: 50, size: 1.5, ranged: true, dash: true, miniboss: true,
-      palette: { skin: '#c99a72', shirt: '#111827', pants: '#0a0e1a', hair: '#000', accent: '#ff4fa3' } },
+      spriteKey: 'ranger', tint: 'hue-rotate(300deg) saturate(1.5) brightness(0.85)', projColor: '#ff4fa3' },
     formerchamp: { name: 'The Former Champ', hp: 160, speed: 1.9, dmg: 11, atkRange: 46, atkCd: 800, xp: 60, size: 1.7, ranged: true, dash: true, miniboss: true,
-      palette: { skin: '#d1a679', shirt: '#6a1414', pants: '#2a0a0a', hair: '#111', accent: '#ffd23f' } },
+      spriteKey: 'renegade', tint: 'hue-rotate(345deg) saturate(1.5) brightness(0.75)', projColor: '#ffd23f' },
   };
 
   // ============================================================
@@ -555,7 +521,7 @@
       this.x = x; this.y = y; this.jumpZ = 0;
       this.hp = def.hp; this.maxHp = def.hp;
       this.facing = -1;
-      this.pose = 'idle'; this.poseTimer = 0; this.poseDuration = 1; this.t = rand(0, 1000);
+      this.pose = 'idle'; this.poseDuration = 1; this.t = rand(0, 1000);
       this.atkCd = rand(300, 700);
       this.hurtTimer = 0;
       this.alive = true;
@@ -565,19 +531,27 @@
       this.engaged = !!def.miniboss; // minibosses/the boss always fight at full attention
       this.attackState = null; // null | 'wind' | 'recover'
       this.attackTimer = 0;
+      this.dying = false;
+      this.deathTimer = 0;
+      this.flashTimer = 0;
     }
-    get progress() { return this.poseDuration > 0 ? clamp(1 - this.poseTimer / this.poseDuration, 0, 1) : 0; }
+    get progress() { return this.poseDuration > 0 ? clamp(1 - this.attackTimer / this.poseDuration, 0, 1) : 0; }
     hurtbox() { return { x: this.x - 16 * (this.def.size||1), y: this.y - 96 * (this.def.size||1), w: 32 * (this.def.size||1), h: 96 * (this.def.size||1) }; }
 
     takeDamage(dmg, fromX, knock) {
+      if (this.dying) return;
       this.hp -= dmg;
       this.hurtTimer = 180;
+      this.flashTimer = 150;
       this.knockX += (this.x < fromX ? -1 : 1) * (knock || 6);
       spawnHit(this.x, this.y - 60, '#ffd23f');
       spawnPopup(this.x, this.y - 100, '-' + dmg, '#ffd23f');
       hitStopTimer = Math.max(hitStopTimer, 70);
-      if (this.hp <= 0 && this.alive) {
-        this.alive = false;
+      if (this.hp <= 0 && !this.dying) {
+        this.dying = true;
+        this.deathTimer = 500;
+        this.pose = 'knockdown';
+        this.attackState = null;
         spawnPopup(this.x, this.y - 110, 'KO!', '#fff');
         if (Math.random() < 0.3 && !this.def.miniboss) {
           pickups.push({ x: this.x, y: this.y, heal: 18, life: 9000, t: 0 });
@@ -589,10 +563,17 @@
       this.t += dt;
       this.atkCd = Math.max(0, this.atkCd - dt);
       this.hurtTimer = Math.max(0, this.hurtTimer - dt);
+      this.flashTimer = Math.max(0, this.flashTimer - dt);
       if (Math.abs(this.knockX) > 0.1) {
         this.x += this.knockX;
         this.knockX *= 0.8;
         this.x = clamp(this.x, 40, world.width - 40);
+      }
+
+      if (this.dying) {
+        this.deathTimer -= dt;
+        if (this.deathTimer <= 0) this.alive = false;
+        return;
       }
 
       if (this.def.customAI) return; // boss is driven entirely by updateBoss()
@@ -618,7 +599,7 @@
               projectiles.push({
                 owner: 'enemy', x: this.x, y: this.y - 55,
                 vx: (player.x > this.x ? 1 : -1) * 6, dmg: this.def.dmg, w: 12, h: 12,
-                friendly: false, life: 3000, color: this.def.palette ? this.def.palette.accent : '#ff4fa3',
+                friendly: false, life: 3000, color: this.def.projColor || '#ff4fa3',
               });
             } else {
               const hb = { x: this.x + (this.facing > 0 ? 0 : -46), y: this.y - 100, w: 46, h: 90 };
@@ -820,7 +801,7 @@
   // Boss behavior
   // ============================================================
   function updateBoss(dt) {
-    if (!boss || !boss.alive) return;
+    if (!boss || !boss.alive || boss.dying) return;
     boss.t = (boss.t || 0) + dt;
     boss.hurtTimer = Math.max(0, boss.hurtTimer - dt);
     boss.flashTimer = Math.max(0, boss.flashTimer - dt);
@@ -915,7 +896,7 @@
       hb.life -= dt;
       if (hb.life > 40) {
         for (const en of enemies) {
-          if (!en.alive || en._hitThisSwing === hb) continue;
+          if (!en.alive || en.dying || en._hitThisSwing === hb) continue;
           if (overlap(hb, en.hurtbox())) {
             en.takeDamage(hb.dmg, player.x, 8);
             en._hitThisSwing = hb;
@@ -948,7 +929,7 @@
       if (p.life <= 0) continue;
       if (p.friendly) {
         for (const en of enemies) {
-          if (!en.alive) continue;
+          if (!en.alive || en.dying) continue;
           if (overlap({ x: p.x - p.w/2, y: p.y - p.h/2, w: p.w, h: p.h }, en.hurtbox())) {
             en.takeDamage(p.dmg, p.x - p.vx, 10);
             p.life = 0;
@@ -1025,10 +1006,15 @@
     px(ctx, 20, 14, 40, 40, '#111');
     ctx.strokeStyle = '#ffd23f'; ctx.lineWidth = 2;
     ctx.strokeRect(20, 14, 40, 40);
-    px(ctx, 32, 20, 16, 14, p.def.palette.skin);
-    px(ctx, 31, 17, 18, 6, p.def.palette.hair);
-    px(ctx, 26, 36, 28, 16, p.def.palette.shirt);
-    if (p.def.palette.glasses) px(ctx, 33, 27, 14, 3, '#1a1a1a');
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(20, 14, 40, 40);
+    ctx.clip();
+    drawSprite(ctx, 40, 54, {
+      facing: 1, scale: 1.05, spriteKey: p.def.spriteKey, tint: p.def.tint, glasses: p.def.glasses,
+      pose: 'idle', t: performance.now(),
+    });
+    ctx.restore();
 
     // health bar
     px(ctx, 66, 16, 174, 16, '#111');
@@ -1078,8 +1064,9 @@
 
     for (const d of drawables) {
       if (d === player) {
-        drawFigure(ctx, d.x - camX, d.y, {
-          facing: d.facing, scale: 1, palette: d.def.palette, pose: d.pose, t: d.t, progress: d.progress,
+        drawSprite(ctx, d.x - camX, d.y, {
+          facing: d.facing, scale: 1, spriteKey: d.def.spriteKey, tint: d.def.tint, glasses: d.def.glasses, accent: d.def.accent,
+          pose: d.pose, t: d.t, progress: d.progress,
           hurt: d.invuln > 0 && Math.floor(d.t / 80) % 2 === 0, jumpZ: d.jumpZ,
         });
       } else if (d === boss) {
@@ -1087,9 +1074,9 @@
       } else if (d.def.flyer) {
         drawVulture(ctx, d.x - camX, d.y - 90 - d.jumpZ, d.t, d.facing);
       } else {
-        drawFigure(ctx, d.x - camX, d.y, {
-          facing: d.facing, scale: d.def.size || 1, palette: d.def.palette || { skin:'#c99a72',shirt:'#555',pants:'#333',hair:'#222' },
-          pose: d.pose, t: d.t, progress: d.progress, hurt: d.hurtTimer > 0, jumpZ: d.jumpZ || 0,
+        drawSprite(ctx, d.x - camX, d.y, {
+          facing: d.facing, scale: d.def.size || 1, spriteKey: d.def.spriteKey || 'renegade', tint: d.def.tint || '',
+          pose: d.pose, t: d.t, progress: d.progress, hurt: d.hurtTimer > 0, jumpZ: d.jumpZ || 0, flash: d.flashTimer > 0,
         });
         if (d.def.miniboss) {
           px(ctx, d.x - camX - 40, d.y - 130 * (d.def.size||1) - 14, 80, 6, '#111');
@@ -1162,9 +1149,9 @@
     ctx.fillStyle = '#ffd23f';
     ctx.fillText('a retro side-scrolling fighter starring the Fantasy Footballers', W/2, 185);
 
-    drawFigure(ctx, W/2 - 220, 380, { facing: 1, scale: 2.2, palette: CHAR_DEFS.andy.palette, pose: 'walk', t });
-    drawFigure(ctx, W/2, 380, { facing: 1, scale: 2.2, palette: CHAR_DEFS.jason.palette, pose: 'punch', t: t+300, progress: (t % 900) / 900 });
-    drawFigure(ctx, W/2 + 220, 380, { facing: -1, scale: 2.2, palette: CHAR_DEFS.mike.palette, pose: 'kick', t, progress: ((t+450) % 900) / 900 });
+    drawSprite(ctx, W/2 - 220, 380, { facing: 1, scale: 2.2, spriteKey: CHAR_DEFS.andy.spriteKey, tint: CHAR_DEFS.andy.tint, pose: 'walk', t });
+    drawSprite(ctx, W/2, 380, { facing: 1, scale: 2.2, spriteKey: CHAR_DEFS.jason.spriteKey, tint: CHAR_DEFS.jason.tint, pose: 'punch', t: t+300, progress: (t % 900) / 900 });
+    drawSprite(ctx, W/2 + 220, 380, { facing: -1, scale: 2.2, spriteKey: CHAR_DEFS.mike.spriteKey, tint: CHAR_DEFS.mike.tint, glasses: true, pose: 'kick', t, progress: ((t+450) % 900) / 900 });
 
     if (Math.floor(t / 500) % 2 === 0) {
       ctx.font = 'bold 20px monospace';
@@ -1196,7 +1183,7 @@
         ctx.strokeStyle = '#ffd23f'; ctx.lineWidth = 3;
         ctx.strokeRect(cx - 90, 160, 180, 280);
       }
-      { const tt = performance.now(); drawFigure(ctx, cx, 400, { facing: 1, scale: 2.4, palette: CHAR_DEFS[k].palette, pose: active ? 'punch' : 'idle', t: tt, progress: active ? (tt % 900) / 900 : 0 }); }
+      { const tt = performance.now(); const cd = CHAR_DEFS[k]; drawSprite(ctx, cx, 400, { facing: 1, scale: 2.4, spriteKey: cd.spriteKey, tint: cd.tint, glasses: cd.glasses, pose: active ? 'punch' : 'idle', t: tt, progress: active ? (tt % 900) / 900 : 0 }); }
       ctx.globalAlpha = 1;
     });
 
@@ -1246,7 +1233,7 @@
     ctx.fillStyle = '#fff';
     wrapText('earns a spot at the table. FootClan Brawler complete — ready to submit for the Fantasy Footballers Listener League.', W/2, 210, 720, 22);
 
-    drawFigure(ctx, W/2, 420, { facing: 1, scale: 3, palette: CHAR_DEFS[selectedChar].palette, pose: 'special', t });
+    { const cd = CHAR_DEFS[selectedChar]; drawSprite(ctx, W/2, 420, { facing: 1, scale: 3, spriteKey: cd.spriteKey, tint: cd.tint, glasses: cd.glasses, accent: cd.accent, pose: 'special', t, progress: (t % 700) / 700 }); }
 
     if (Math.floor(t/500)%2===0) {
       ctx.font = 'bold 16px monospace';
@@ -1271,11 +1258,24 @@
   // ============================================================
   // Main loop + state transitions
   // ============================================================
+  function drawLoading() {
+    ctx.fillStyle = '#0a0a12';
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 20px monospace';
+    const dots = '.'.repeat(Math.floor(performance.now() / 300) % 4);
+    ctx.fillText('LOADING' + dots, W / 2, H / 2);
+    ctx.textAlign = 'left';
+  }
+
   function frame(ts) {
     const dt = lastTs ? ts - lastTs : 16;
     lastTs = ts;
 
-    if (state === 'title') {
+    if (state === 'loading') {
+      drawLoading();
+    } else if (state === 'title') {
       drawTitle();
       if (tapped('Space')) { state = 'select'; }
     } else if (state === 'select') {
@@ -1304,5 +1304,7 @@
     requestAnimationFrame(frame);
   }
 
+  state = 'loading';
   requestAnimationFrame(frame);
+  loadSprites().then(() => { state = 'title'; });
 })();

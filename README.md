@@ -19,4 +19,8 @@ Fight through four stages themed on real FootClan franchises — the UDK War Roo
 
 ## Tech
 
-Single-page HTML5 Canvas game, no build step, no external assets — all sprites are drawn procedurally. Just static files (`index.html`, `style.css`, `game.js`), so it deploys as-is to GitHub Pages / Cloudflare Pages / any static host.
+HTML5 Canvas game, no build step. Everything renders through a low-res buffer upscaled with smoothing off for a genuine chunky-pixel look. Just static files (`index.html`, `style.css`, `game.js`, `assets/`), so it deploys as-is to GitHub Pages / Cloudflare Pages / any static host.
+
+## Art credit
+
+Character sprites are the free "Brawler Series" (Ranger & Renegade rigs) by **chasersgaming**, CC0-licensed, from [OpenGameArt.org](https://opengameart.org/content/brawler-asset-character-ranger-sms) — explicitly built in the Double Dragon / Streets of Rage mold. Recolored via canvas filters to differentiate the three playable hosts and enemy roster. No attribution is legally required under CC0, but it's credited here anyway. Everything else (levels, boss, backgrounds, UI, game logic) is original.
