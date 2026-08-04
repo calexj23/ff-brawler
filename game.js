@@ -291,23 +291,42 @@
   // Attack poses swing the guitar as a weapon; everything else keeps it slung.
   const GUITAR_SWING_POSES = new Set(['punch', 'kick', 'dashatk', 'jumpatk', 'signature', 'special']);
 
+  // Canvas rotate(θ) sends a local point (0, L) -- "straight down" before any
+  // spin -- to parent-space position (-L·sinθ, L·cosθ). Every angle below was
+  // picked by solving that equation for the direction I actually wanted, not
+  // by eyeballing a number, after the first version turned out to swing the
+  // guitar backward at the exact moment it was supposed to connect.
   function drawGuitar(ctx, scale, mode, progress) {
     const s = scale;
     ctx.save();
     if (mode === 'slung') {
-      ctx.translate(-4 * s, -48 * s);
-      ctx.rotate(-0.55);
-      px(ctx, -3.5 * s, -16 * s, 7 * s, 30 * s, '#5a3018');   // neck
-      px(ctx, -3.5 * s, -16 * s, 7 * s, 4 * s, '#e8d9b8');    // headstock
-      px(ctx, -9 * s, 10 * s, 18 * s, 20 * s, '#a6521f');     // body
-      px(ctx, -3 * s, 17 * s, 6 * s, 6 * s, '#241408');       // sound hole
+      // strapped across his back: pivot near the shoulder blade, whole
+      // instrument hangs down and BACKWARD (θ = +0.55 -> parent x is negative)
+      ctx.translate(-4 * s, -50 * s);
+      ctx.rotate(0.55);
+      px(ctx, -3.5 * s, -10 * s, 7 * s, 26 * s, '#5a3018');   // neck
+      px(ctx, -3.5 * s, -10 * s, 7 * s, 4 * s, '#e8d9b8');    // headstock, peeks over the shoulder
+      px(ctx, -9 * s, 14 * s, 18 * s, 20 * s, '#a6521f');     // body, hangs behind his hip
+      px(ctx, -3 * s, 21 * s, 6 * s, 6 * s, '#241408');       // sound hole
     } else {
-      // windup (cocked back) -> strike (full extension forward) -> recover
+      // three real keyframes -- cocked back-and-up, full extension forward,
+      // settle to a loose forward-down rest -- verified against the formula
+      // above so the swing actually goes where the strike lands.
+      const BACK_UP = 2.35;    // -> parent (-0.71L, -0.71L): behind him, raised
+      const FORWARD = -1.25;   // -> parent (+0.95L, +0.32L): out in front, low
+      const REST = -0.30;      // -> parent (+0.30L, +0.95L): hanging, slight forward lean
       const p = clamp(progress, 0, 1);
       let ang;
-      if (p < 0.35) ang = -1.7 + (p / 0.35) * 0.5;
-      else if (p < 0.62) ang = -1.2 + ((p - 0.35) / 0.27) * 2.0;
-      else ang = 0.8 - ((p - 0.62) / 0.38) * 0.8;
+      if (p < 0.08) {
+        ang = BACK_UP; // brief held anticipation before the whip
+      } else if (p < 0.32) {
+        const q = (p - 0.08) / 0.24;
+        const e = q * q * (3 - 2 * q); // smoothstep -- a whip, not a linear crawl
+        ang = BACK_UP + (FORWARD - BACK_UP) * e;
+      } else {
+        const q = Math.min(1, (p - 0.32) / 0.68);
+        ang = FORWARD + (REST - FORWARD) * q;
+      }
       ctx.translate(11 * s, -58 * s);
       ctx.rotate(ang);
       px(ctx, -3.5 * s, 0, 7 * s, 26 * s, '#5a3018');         // neck, grip end
@@ -362,10 +381,17 @@
 
     if (glasses) px(ctx, -8 * scale, -dispH + 10 * scale, 16 * scale, 3 * scale, '#141414');
     if (cap) {
-      // oversized ball cap -- deliberately bigger than his head, classic sight gag
-      px(ctx, -14 * scale, -dispH - 3 * scale, 28 * scale, 11 * scale, '#1f3a8a');
-      px(ctx, -14 * scale, -dispH + 3 * scale, 28 * scale, 4 * scale, '#ffd23f');
-      px(ctx, facing >= 0 ? -4 * scale : -20 * scale, -dispH + 5 * scale, 20 * scale, 5 * scale, '#16296b');
+      // Ball cap, a size up from his actual 16-unit-wide head (not 2x) --
+      // "oversized" as a light gag, not a slab. Domed via a narrower crown
+      // row over a wider base row, with a brim that only projects toward
+      // local +x (the facing direction). No manual facing check needed here:
+      // the canvas is already mirrored for left-facing before this runs, so
+      // a fixed +x offset lands correctly on both sides automatically.
+      const top = -dispH;
+      px(ctx, -7 * scale, top - 1 * scale, 14 * scale, 4 * scale, '#1f3a8a');   // crown, upper (narrow)
+      px(ctx, -10 * scale, top + 2 * scale, 20 * scale, 5 * scale, '#1f3a8a');  // crown, base (wider, overlaps head)
+      px(ctx, -5 * scale, top + 3 * scale, 10 * scale, 2 * scale, '#ffd23f');   // accent band
+      px(ctx, 3 * scale, top + 5 * scale, 10 * scale, 3 * scale, '#16296b');    // brim, forward only
     }
 
     if (guitar && GUITAR_SWING_POSES.has(pose)) drawGuitar(ctx, scale, 'swing', progress);
