@@ -5,14 +5,26 @@
   // Setup
   // ============================================================
   const canvas = document.getElementById('game');
-  const ctx = canvas.getContext('2d');
-  ctx.imageSmoothingEnabled = false;
+  const screenCtx = canvas.getContext('2d');
+  screenCtx.imageSmoothingEnabled = false;
   const W = canvas.width, H = canvas.height;
+
+  // Render everything into a low-res buffer, then blit it up scaled with
+  // smoothing off -- that's what gives the genuine chunky-pixel look instead
+  // of just flat-colored rectangles at full resolution.
+  const PIXEL_SCALE = 2;
+  const BW = Math.round(W / PIXEL_SCALE), BH = Math.round(H / PIXEL_SCALE);
+  const buf = document.createElement('canvas');
+  buf.width = BW; buf.height = BH;
+  const ctx = buf.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  ctx.scale(1 / PIXEL_SCALE, 1 / PIXEL_SCALE);
 
   const GROUND_Y = 400;          // baseline y for the ground band
   const BAND_TOP = GROUND_Y - 60;
   const BAND_BOTTOM = GROUND_Y + 70;
   const GRAVITY = 0.7;
+  const MAX_ENGAGED = 2; // classic beat-'em-up crowd control: only this many enemies close in at once
 
   // ============================================================
   // Input
@@ -49,78 +61,158 @@
     ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h));
   }
 
-  // Draws a blocky retro humanoid. footX/footY = ground contact point.
+  // limb segment: pivot -> rotated rect extending "down" (ang 0 = straight down, + = swings toward facing/+X)
+  function limbSeg(ctx, x, y, len, w, ang, color) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(ang);
+    px(ctx, -w / 2, -1, w, len + 1, color);
+    ctx.restore();
+    return { x: x + Math.sin(ang) * len, y: y + Math.cos(ang) * len };
+  }
+  function easeOutQuad(t) { return 1 - (1 - t) * (1 - t); }
+  function easeInQuad(t) { return t * t; }
+
+  // Draws an articulated retro humanoid, Streets-of-Rage-proportioned, with real
+  // windup/strike/recover phases for punch & kick instead of a static pose.
+  // footX/footY = ground contact point. opts.progress = 0..1 through the current pose.
   function drawFigure(ctx, footX, footY, opts) {
     const {
-      facing = 1, scale = 1, palette, pose = 'idle', t = 0,
-      hurt = false, jumpZ = 0, flash = false
+      facing = 1, scale = 1, palette, pose = 'idle', t = 0, progress = 0,
+      hurt = false, jumpZ = 0, flash = false, ko = false
     } = opts;
     const s = scale;
-    const bob = pose === 'walk' ? Math.sin(t * 0.02) * 2 * s : 0;
     const baseY = footY - jumpZ;
 
     ctx.save();
     ctx.translate(footX, baseY);
     if (facing < 0) ctx.scale(-1, 1);
+    if (ko) { ctx.rotate(Math.PI / 2); ctx.translate(-38 * s, 0); }
 
-    if (flash) {
-      ctx.filter = 'brightness(2) saturate(0)';
-    } else if (hurt) {
-      ctx.filter = 'brightness(1.6) hue-rotate(-20deg)';
-    }
-
-    // shadow
-    ctx.filter = 'none';
+    // shadow (stays upright even if character is knocked down)
+    ctx.save();
+    if (ko) ctx.rotate(-Math.PI / 2);
     ctx.globalAlpha = 0.35;
-    px(ctx, -14 * s, 2, 28 * s, 6 * s, '#000');
+    ctx.beginPath();
+    ctx.ellipse(ko ? 20 * s : 0, 2, 15 * s, 5 * s, 0, 0, Math.PI * 2);
+    ctx.fillStyle = '#000';
+    ctx.fill();
     ctx.globalAlpha = 1;
-    if (hurt) ctx.filter = 'brightness(1.6) saturate(0.4)';
-    if (flash) ctx.filter = 'brightness(2.2)';
+    ctx.restore();
 
-    const legSwing = pose === 'walk' ? Math.sin(t * 0.02) * 10 * s : 0;
-    const legSwing2 = pose === 'walk' ? Math.sin(t * 0.02 + Math.PI) * 10 * s : 0;
+    if (flash) ctx.filter = 'brightness(2.4) saturate(0.3)';
+    else if (hurt) ctx.filter = 'brightness(1.7) saturate(0.5) hue-rotate(-10deg)';
 
-    // legs
-    const legY = -34 * s + bob;
-    px(ctx, -10 * s + legSwing * 0.3, legY, 8 * s, 34 * s, palette.pants);
-    px(ctx, 2 * s + legSwing2 * 0.3, legY, 8 * s, 34 * s, palette.pants);
+    const HIP_Y = -36 * s, SHOULDER_Y = -66 * s, HEAD_Y = -94 * s;
+    const THIGH = 19 * s, SHIN = 18 * s, UPPER_ARM = 15 * s, FOREARM = 14 * s;
+    const LEG_W = 9 * s, ARM_W = 7.5 * s;
 
-    // torso
-    const torsoY = -66 * s + bob;
-    px(ctx, -12 * s, torsoY, 24 * s, 34 * s, palette.shirt);
+    let bodyLean = 0, hipShift = 0;
+    let legA = { thigh: 0.05, shin: 0.06 }, legB = { thigh: -0.05, shin: -0.02 };
+    let armA = { upper: 0.18, fore: 0.32 }, armB = { upper: -0.18, fore: -0.28 };
+    let bob = 0;
 
-    // arms
-    let armFY = -60 * s + bob;
-    let backArmX = -20 * s, frontArmX = 10 * s;
-    let armLen = 8 * s, armH = 24 * s;
-
-    if (pose === 'punch') {
-      px(ctx, 10 * s, armFY + 4 * s, 26 * s, 8 * s, palette.skin); // extended punch arm
-      px(ctx, backArmX, armFY, armLen, armH, palette.shirt);
+    if (pose === 'walk') {
+      const cyc = t * 0.018;
+      bob = Math.abs(Math.sin(cyc)) * 2.4 * s;
+      const swing = 0.62;
+      legA.thigh = Math.sin(cyc) * swing;
+      legA.shin = Math.max(0, -Math.sin(cyc + 0.7)) * 0.7 + 0.08;
+      legB.thigh = Math.sin(cyc + Math.PI) * swing;
+      legB.shin = Math.max(0, -Math.sin(cyc + Math.PI + 0.7)) * 0.7 + 0.08;
+      armA.upper = -legA.thigh * 0.6; armA.fore = 0.3 + Math.abs(legA.thigh) * 0.2;
+      armB.upper = -legB.thigh * 0.6; armB.fore = 0.3 + Math.abs(legB.thigh) * 0.2;
+    } else if (pose === 'punch') {
+      // 0-0.32 windup (pull back), 0.32-0.58 strike (full extension), 0.58-1 recover
+      if (progress < 0.32) {
+        const p = easeOutQuad(progress / 0.32);
+        armA.upper = -0.55 - p * 0.5; armA.fore = -1.3 - p * 0.5;
+        bodyLean = -0.05 * p; hipShift = -2 * s * p;
+      } else if (progress < 0.58) {
+        const p = easeOutQuad((progress - 0.32) / 0.26);
+        armA.upper = -1.05 + p * 1.45; armA.fore = -1.8 + p * 2.05;
+        bodyLean = -0.05 + 0.14 * p; hipShift = -2 * s + 5 * s * p;
+      } else {
+        const p = easeInQuad((progress - 0.58) / 0.42);
+        armA.upper = 0.4 - p * 0.22; armA.fore = 0.25 - p * 0.07;
+        bodyLean = 0.09 - 0.09 * p; hipShift = 3 * s - 3 * s * p;
+      }
+      legA.thigh = 0.12 + hipShift * 0.02; legB.thigh = -0.08;
     } else if (pose === 'kick') {
-      px(ctx, backArmX, armFY, armLen, armH, palette.shirt);
-      px(ctx, frontArmX, armFY, armLen, armH, palette.shirt);
-      // kicking leg overrides
-      px(ctx, 4 * s, -20 * s + bob, 30 * s, 8 * s, palette.pants);
+      if (progress < 0.3) {
+        const p = easeOutQuad(progress / 0.3);
+        legA.thigh = -0.3 * p; legA.shin = 0.9 * p;
+        bodyLean = -0.1 * p; armA.upper = 0.5 * p; armB.upper = -0.6 * p;
+      } else if (progress < 0.6) {
+        const p = easeOutQuad((progress - 0.3) / 0.3);
+        legA.thigh = -0.3 + p * 1.5; legA.shin = 0.9 - p * 0.75;
+        bodyLean = -0.1 - 0.12 * p; armA.upper = 0.5 - p * 0.2; armB.upper = -0.6 + p * 0.1;
+      } else {
+        const p = easeInQuad((progress - 0.6) / 0.4);
+        legA.thigh = 1.2 - p * 1.15; legA.shin = 0.15 - p * 0.09;
+        bodyLean = -0.22 + 0.22 * p; armA.upper = 0.3 - p * 0.12; armB.upper = -0.5 + p * 0.32;
+      }
+      legB.thigh = -0.12; legB.shin = 0.15;
     } else if (pose === 'special') {
-      px(ctx, backArmX - 4 * s, armFY - 6 * s, armLen, armH, palette.accent);
-      px(ctx, frontArmX + 4 * s, armFY - 6 * s, armLen, armH, palette.accent);
-    } else {
-      px(ctx, backArmX, armFY, armLen, armH, palette.shirt);
-      px(ctx, frontArmX, armFY, armLen, armH, palette.shirt);
+      const glow = 0.5 + Math.sin(t * 0.03) * 0.5;
+      armA.upper = -0.7; armA.fore = -1.5;
+      armB.upper = 0.7; armB.fore = 1.5;
+      bodyLean = Math.sin(t * 0.02) * 0.05;
+      ctx.save();
+      ctx.globalAlpha = 0.25 + glow * 0.25;
+      ctx.beginPath();
+      ctx.arc(0, SHOULDER_Y, 30 * s, 0, Math.PI * 2);
+      ctx.fillStyle = palette.accent;
+      ctx.fill();
+      ctx.restore();
+    } else if (pose === 'hurt') {
+      bodyLean = -0.14; hipShift = -3 * s;
+      armA.upper = -0.5; armB.upper = 0.4;
+      legA.thigh = -0.1; legB.thigh = 0.15;
     }
+
+    ctx.save();
+    ctx.translate(hipShift, -bob);
+    ctx.rotate(bodyLean);
+
+    // back leg
+    const kneeB = limbSeg(ctx, -6 * s, HIP_Y, THIGH, LEG_W, legB.thigh, palette.pants);
+    limbSeg(ctx, kneeB.x, kneeB.y, SHIN, LEG_W * 0.85, legB.thigh + legB.shin, palette.shoe || shade(palette.pants, -20));
+    // torso (jacket-style: shoulders wide, waist narrower, belt band)
+    px(ctx, -13 * s, SHOULDER_Y, 26 * s, 30 * s, palette.shirt);
+    px(ctx, -13 * s, HIP_Y - 6 * s, 26 * s, 6 * s, shade(palette.shirt, -25));
+    if (palette.accent) { px(ctx, -13 * s, SHOULDER_Y, 26 * s, 4 * s, palette.accent); }
+    // back arm
+    const elbowB = limbSeg(ctx, -13 * s, SHOULDER_Y + 4 * s, UPPER_ARM, ARM_W, armB.upper, palette.shirt);
+    const handB = limbSeg(ctx, elbowB.x, elbowB.y, FOREARM, ARM_W * 0.85, armB.upper + armB.fore, palette.skin);
+    px(ctx, handB.x - 4 * s, handB.y - 4 * s, 8 * s, 8 * s, palette.skin);
+
+    // front leg
+    const kneeA = limbSeg(ctx, 6 * s, HIP_Y, THIGH, LEG_W, legA.thigh, palette.pants);
+    limbSeg(ctx, kneeA.x, kneeA.y, SHIN, LEG_W * 0.85, legA.thigh + legA.shin, palette.shoe || shade(palette.pants, -20));
 
     // head
-    const headY = -92 * s + bob;
+    const headY = HEAD_Y;
     px(ctx, -9 * s, headY, 18 * s, 16 * s, palette.skin);
-    // hair/hat
     px(ctx, -10 * s, headY - 4 * s, 20 * s, 6 * s, palette.hair);
-    // glasses/eyes accent
-    if (palette.glasses) {
-      px(ctx, -8 * s, headY + 6 * s, 16 * s, 3 * s, '#1a1a1a');
-    }
+    if (palette.glasses) px(ctx, -8 * s, headY + 6 * s, 16 * s, 3 * s, '#1a1a1a');
 
+    // front arm (drawn after head so punches read on top)
+    const elbowA = limbSeg(ctx, 13 * s, SHOULDER_Y + 4 * s, UPPER_ARM, ARM_W, armA.upper, pose === 'special' ? palette.accent : palette.shirt);
+    const fistColor = pose === 'special' ? palette.accent : palette.skin;
+    const handA = limbSeg(ctx, elbowA.x, elbowA.y, FOREARM, ARM_W * 0.85, armA.upper + armA.fore, fistColor);
+    px(ctx, handA.x - 4.5 * s, handA.y - 4.5 * s, 9 * s, 9 * s, fistColor);
+
+    ctx.restore(); // bodyLean/hipShift/bob
+    ctx.filter = 'none';
     ctx.restore();
+  }
+
+  function shade(hex, amt) {
+    const n = parseInt(hex.slice(1), 16);
+    let r = (n >> 16) + amt, g = ((n >> 8) & 0xff) + amt, b = (n & 0xff) + amt;
+    r = clamp(r, 0, 255); g = clamp(g, 0, 255); b = clamp(b, 0, 255);
+    return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
   }
 
   function drawVulture(ctx, x, y, t, facing) {
@@ -307,6 +399,8 @@
   let projectiles = [];
   let particles = [];
   let popups = [];
+  let pickups = [];
+  let hitStopTimer = 0;
 
   function spawnHit(x, y, color = '#fff') {
     for (let i = 0; i < 8; i++) {
@@ -328,13 +422,16 @@
       this.facing = 1;
       this.health = def.maxHealth; this.maxHealth = def.maxHealth;
       this.meter = 0; this.maxMeter = 100;
-      this.pose = 'idle'; this.poseTimer = 0; this.t = 0;
+      this.pose = 'idle'; this.poseTimer = 0; this.poseDuration = 1; this.t = 0;
       this.cds = { punch: 0, kick: 0, special: 0 };
       this.invuln = 0;
       this.hitboxActive = null;
+      this.pendingHit = null;
+      this.pendingProjectile = null;
       this.alive = true;
       this.comboCount = 0;
     }
+    get progress() { return this.poseDuration > 0 ? clamp(1 - this.poseTimer / this.poseDuration, 0, 1) : 0; }
     get footX() { return this.x; }
     get footY() { return this.y; }
     hurtbox() { return { x: this.x - 16, y: this.y - 96, w: 32, h: 96 }; }
@@ -345,6 +442,7 @@
       this.invuln = 700;
       this.facing = fromX < this.x ? 1 : -1;
       this.knockX += (fromX < this.x ? 1 : -1) * 16;
+      hitStopTimer = Math.max(hitStopTimer, 40);
       spawnHit(this.x, this.y - 60, '#ff6b6b');
       spawnPopup(this.x, this.y - 100, '-' + dmg, '#ff6b6b');
       if (this.health <= 0) this.alive = false;
@@ -396,9 +494,34 @@
       if (this.pose === 'idle' || this.pose === 'walk') {
         this.pose = moving ? 'walk' : 'idle';
       }
+
+      // fire the hit/projectile right as the animation reaches its strike frame,
+      // instead of the instant it's pressed -- that's what makes it read as a real punch
+      if (this.pendingHit || this.pendingProjectile) {
+        const p = this.progress;
+        const strikeAt = this.pose === 'kick' ? 0.30 : (this.pose === 'special' ? 0.35 : 0.32);
+        const strikeEnd = this.pose === 'kick' ? 0.62 : (this.pose === 'special' ? 0.55 : 0.60);
+        if (p >= strikeAt && this.pendingProjectile) {
+          const def = this.pendingProjectile;
+          projectiles.push({
+            owner: 'player', x: this.x + this.facing * 20, y: this.y - 55,
+            vx: this.facing * 9, dmg: def.dmg, w: 16, h: 10, friendly: true, life: 2000, color: '#8a5a2a',
+          });
+          this.pendingProjectile = null;
+        } else if (p >= strikeAt && this.pendingHit) {
+          const def = this.pendingHit;
+          this.hitboxActive = {
+            x: this.x + (this.facing > 0 ? 0 : -def.range),
+            y: this.y - 100, w: def.range, h: 90,
+            dmg: def.dmg, aoe: !!def.aoe, life: (strikeEnd - strikeAt) * this.poseDuration,
+          };
+          this.pendingHit = null;
+        }
+      }
+
       if (this.poseTimer > 0) {
         this.poseTimer -= dt;
-        if (this.poseTimer <= 0) { this.pose = 'idle'; this.hitboxActive = null; }
+        if (this.poseTimer <= 0) { this.pose = 'idle'; this.hitboxActive = null; this.pendingHit = null; this.pendingProjectile = null; }
       }
 
       this.meter = clamp(this.meter, 0, this.maxMeter);
@@ -406,26 +529,22 @@
 
     doAttack(kind) {
       const def = this.def[kind];
+      const duration = kind === 'special' ? 460 : (kind === 'kick' ? 340 : 260);
       this.pose = kind;
-      this.poseTimer = kind === 'special' ? 420 : 260;
+      this.poseDuration = duration;
+      this.poseTimer = duration;
       this.cds[kind] = def.cd;
       if (kind === 'special') this.meter -= def.cost;
       this.comboCount++;
+      this.hitboxActive = null;
+      this.pendingHit = null;
+      this.pendingProjectile = null;
 
       if (kind === 'special' && this.charKey === 'mike') {
-        projectiles.push({
-          owner: 'player', x: this.x + this.facing * 20, y: this.y - 55,
-          vx: this.facing * 9, dmg: def.dmg, w: 16, h: 10, friendly: true, life: 2000, color: '#8a5a2a',
-        });
-        this.hitboxActive = null;
-        return;
+        this.pendingProjectile = def;
+      } else {
+        this.pendingHit = def;
       }
-
-      this.hitboxActive = {
-        x: this.x + (this.facing > 0 ? 0 : -def.range),
-        y: this.y - 100, w: def.range, h: 90,
-        dmg: def.dmg, stun: def.stun ?? 250, aoe: !!def.aoe, life: 140,
-      };
     }
   }
 
@@ -436,14 +555,18 @@
       this.x = x; this.y = y; this.jumpZ = 0;
       this.hp = def.hp; this.maxHp = def.hp;
       this.facing = -1;
-      this.pose = 'idle'; this.poseTimer = 0; this.t = rand(0, 1000);
-      this.atkCd = rand(0, 400);
+      this.pose = 'idle'; this.poseTimer = 0; this.poseDuration = 1; this.t = rand(0, 1000);
+      this.atkCd = rand(300, 700);
       this.hurtTimer = 0;
       this.alive = true;
       this.knockX = 0;
       this.flyPhase = rand(0, 10);
       this.summonCd = 3000;
+      this.engaged = !!def.miniboss; // minibosses/the boss always fight at full attention
+      this.attackState = null; // null | 'wind' | 'recover'
+      this.attackTimer = 0;
     }
+    get progress() { return this.poseDuration > 0 ? clamp(1 - this.poseTimer / this.poseDuration, 0, 1) : 0; }
     hurtbox() { return { x: this.x - 16 * (this.def.size||1), y: this.y - 96 * (this.def.size||1), w: 32 * (this.def.size||1), h: 96 * (this.def.size||1) }; }
 
     takeDamage(dmg, fromX, knock) {
@@ -452,9 +575,13 @@
       this.knockX += (this.x < fromX ? -1 : 1) * (knock || 6);
       spawnHit(this.x, this.y - 60, '#ffd23f');
       spawnPopup(this.x, this.y - 100, '-' + dmg, '#ffd23f');
+      hitStopTimer = Math.max(hitStopTimer, 70);
       if (this.hp <= 0 && this.alive) {
         this.alive = false;
         spawnPopup(this.x, this.y - 110, 'KO!', '#fff');
+        if (Math.random() < 0.3 && !this.def.miniboss) {
+          pickups.push({ x: this.x, y: this.y, heal: 18, life: 9000, t: 0 });
+        }
       }
     }
 
@@ -468,6 +595,7 @@
         this.x = clamp(this.x, 40, world.width - 40);
       }
 
+      if (this.def.customAI) return; // boss is driven entirely by updateBoss()
       if (!player || !player.alive) return;
       const d = dist(this, player);
       const speed = this.def.speed;
@@ -477,7 +605,53 @@
         this.jumpZ = 30 + Math.sin(this.t * 0.003 + this.flyPhase) * 15;
       }
 
-      if (this.hurtTimer > 0) { this.pose = 'hurt'; return; }
+      if (this.hurtTimer > 0) { this.pose = 'hurt'; this.attackState = null; return; }
+
+      // mid-attack: hold position through windup/strike/recover
+      if (this.attackState) {
+        this.attackTimer -= dt;
+        this.pose = 'punch';
+        if (this.attackTimer <= 0) {
+          if (this.attackState === 'wind') {
+            this.facing = player.x > this.x ? 1 : -1;
+            if (this.def.ranged) {
+              projectiles.push({
+                owner: 'enemy', x: this.x, y: this.y - 55,
+                vx: (player.x > this.x ? 1 : -1) * 6, dmg: this.def.dmg, w: 12, h: 12,
+                friendly: false, life: 3000, color: this.def.palette ? this.def.palette.accent : '#ff4fa3',
+              });
+            } else {
+              const hb = { x: this.x + (this.facing > 0 ? 0 : -46), y: this.y - 100, w: 46, h: 90 };
+              if (overlap(hb, player.hurtbox())) player.takeDamage(this.def.dmg, this.x);
+            }
+            this.attackState = 'recover';
+            this.attackTimer = this.poseDuration = 220;
+          } else {
+            this.attackState = null;
+          }
+        }
+        if (this.def.summons) this.tickSummon(dt, world);
+        return;
+      }
+
+      if (!this.engaged) {
+        // waiting our turn: hover near the fight instead of piling on
+        const leash = 160;
+        if (d > leash) {
+          const dx = player.x - this.x, dy = player.y - this.y;
+          const len = Math.hypot(dx, dy) || 1;
+          this.x += (dx / len) * speed * 0.8;
+          this.y += (dy / len) * speed * 0.5;
+          this.y = clamp(this.y, BAND_TOP, BAND_BOTTOM);
+          this.facing = dx > 0 ? 1 : -1;
+          this.pose = 'walk';
+        } else {
+          this.pose = 'idle';
+          this.facing = player.x > this.x ? 1 : -1;
+        }
+        if (this.def.summons) this.tickSummon(dt, world);
+        return;
+      }
 
       if (d > range * 0.85) {
         const dx = player.x - this.x, dy = player.y - this.y;
@@ -492,27 +666,30 @@
         this.pose = 'idle';
         if (this.atkCd <= 0) {
           this.atkCd = this.def.atkCd;
+          this.attackState = 'wind';
+          this.attackTimer = this.poseDuration = 300;
           this.pose = 'punch';
-          this.poseTimer = 260;
-          if (this.def.ranged) {
-            projectiles.push({
-              owner: 'enemy', x: this.x, y: this.y - 55,
-              vx: (player.x > this.x ? 1 : -1) * 6, dmg: this.def.dmg, w: 12, h: 12,
-              friendly: false, life: 3000, color: this.def.palette ? this.def.palette.accent : '#ff4fa3',
-            });
-          } else {
-            const hb = { x: this.x + (this.facing > 0 ? 0 : -46), y: this.y - 100, w: 46, h: 90 };
-            if (overlap(hb, player.hurtbox())) player.takeDamage(this.def.dmg, this.x);
-          }
         }
       }
-      if (this.def.summons && this.summonCd !== undefined) {
-        this.summonCd -= dt;
-        if (this.summonCd <= 0) {
-          this.summonCd = 4500;
-          world.spawnExtra('vulture', this.x + rand(-80, 80), clamp(this.y + rand(-30,30), BAND_TOP, BAND_BOTTOM));
-        }
+      if (this.def.summons) this.tickSummon(dt, world);
+    }
+
+    tickSummon(dt, world) {
+      if (this.summonCd === undefined) return;
+      this.summonCd -= dt;
+      if (this.summonCd <= 0) {
+        this.summonCd = 4500;
+        world.spawnExtra('vulture', this.x + rand(-80, 80), clamp(this.y + rand(-30,30), BAND_TOP, BAND_BOTTOM));
       }
+    }
+  }
+
+  function assignEngagement(list) {
+    let count = 0;
+    for (const en of list) if (en.alive && en.engaged) count++;
+    for (const en of list) {
+      if (!en.alive || en.engaged) continue;
+      if (count < MAX_ENGAGED) { en.engaged = true; count++; }
     }
   }
 
@@ -583,10 +760,13 @@
   let boss = null;
   let winTimer = 0;
   let shakeTimer = 0;
+  let lives = 4;
+  const START_LIVES = 4;
 
   function startGame() {
     player = new Player(selectedChar);
     levelIdx = 0;
+    lives = START_LIVES;
     loadLevel(0);
     state = 'playing';
   }
@@ -597,21 +777,23 @@
     projectiles = [];
     particles = [];
     popups = [];
+    pickups = [];
     camX = 0;
     world.width = lvl.width;
     world.spawnExtra = (key, x, y) => enemies.push(new Enemy(key, x, y));
     player.x = 100;
     player.y = GROUND_Y;
     player.health = player.maxHealth;
+    player.invuln = 0;
     for (const w of lvl.waves) w.spawned = false;
     boss = null;
 
     if (lvl.boss) {
       boss = new Enemy('runnerup', world.width * 0.65, GROUND_Y, {
-        name: 'The Runner-Up', hp: 380, maxHp: 380, speed: 1.3, dmg: 12, atkRange: 90, atkCd: 1400, size: 4,
+        name: 'The Runner-Up', hp: 340, maxHp: 340, speed: 1.3, dmg: 10, atkRange: 90, atkCd: 1400, size: 4, customAI: true,
       });
       boss.phase = 1; boss.enraged = false; boss.attackTelegraph = null; boss.flashTimer = 0;
-      boss.slamCd = 1800; boss.summonCd2 = 5000; boss.rushCd = 6000; boss.rushing = false;
+      boss.slamCd = 2200; boss.summonCd2 = 6000; boss.rushCd = 7000; boss.rushing = false;
       enemies.push(boss);
     }
 
@@ -687,18 +869,19 @@
   function executeBossAttack(kind) {
     if (kind === 'slam') {
       shakeTimer = 300;
+      hitStopTimer = Math.max(hitStopTimer, 90);
       const hb = { x: boss.x - 140, y: GROUND_Y - 100, w: 280, h: 130 };
-      if (overlap(hb, player.hurtbox())) player.takeDamage(10 + boss.phase * 2, boss.x);
+      if (overlap(hb, player.hurtbox())) player.takeDamage(7 + boss.phase * 2, boss.x);
       spawnHit(boss.x, GROUND_Y, '#ff8c3c');
       for (let i = 0; i < 3; i++) {
-        projectiles.push({ owner: 'enemy', x: boss.x, y: GROUND_Y - 40, vx: (i - 1) * 4, vy: -3, dmg: 6, w: 10, h: 10, friendly: false, life: 1200, color: '#f4c542', arc: true });
+        projectiles.push({ owner: 'enemy', x: boss.x, y: GROUND_Y - 40, vx: (i - 1) * 4, vy: -3, dmg: 5, w: 10, h: 10, friendly: false, life: 1200, color: '#f4c542', arc: true });
       }
     } else if (kind === 'rush') {
       boss.rushing = true;
       spawnPopup(boss.x, boss.y - 220, 'RUNNER-UP RUSH', '#ff3b3b');
       setTimeout(() => { boss.rushing = false; }, 500);
       const hb = { x: Math.min(boss.x, player.x) - 40, y: GROUND_Y - 110, w: Math.abs(boss.x - player.x) + 80, h: 130 };
-      if (overlap(hb, player.hurtbox())) player.takeDamage(15, boss.x);
+      if (overlap(hb, player.hurtbox())) player.takeDamage(11, boss.x);
     }
   }
 
@@ -713,10 +896,18 @@
 
     if (state !== 'playing') return;
 
-    player.update(dt, world);
+    // brief slow-mo "hit stop" on meaty impacts for a chunkier feel
+    let simDt = dt;
+    if (hitStopTimer > 0) {
+      hitStopTimer -= dt;
+      simDt = dt * 0.12;
+    }
+
+    player.update(simDt, world);
     camX = clamp(player.x - W / 2, 0, Math.max(0, world.width - W));
 
     checkWaves();
+    assignEngagement(enemies);
 
     // player attack resolution
     if (player.hitboxActive) {
@@ -737,7 +928,7 @@
     }
 
     // enemies
-    for (const en of enemies) en.update(dt, player, world);
+    for (const en of enemies) en.update(simDt, player, world);
     enemies = enemies.filter(en => {
       if (!en.alive) {
         if (en === boss) { onBossDefeated(); }
@@ -746,12 +937,12 @@
       return true;
     });
 
-    if (boss) updateBoss(dt);
+    if (boss) updateBoss(simDt);
 
     // projectiles
     for (const p of projectiles) {
-      p.x += p.vx; if (p.vy !== undefined) { p.vy += 0.15; p.y += p.vy; }
-      p.life -= dt;
+      p.x += p.vx * (simDt / 16); if (p.vy !== undefined) { p.vy += 0.15 * (simDt/16); p.y += p.vy * (simDt/16); }
+      p.life -= simDt;
     }
     for (const p of projectiles) {
       if (p.life <= 0) continue;
@@ -779,8 +970,30 @@
     for (const pop of popups) { pop.y -= 0.6; pop.life--; }
     popups = popups.filter(p => p.life > 0);
 
+    // health pickups
+    for (const pk of pickups) {
+      pk.t += dt; pk.life -= dt;
+      if (player.alive && Math.hypot(pk.x - player.x, pk.y - player.y) < 34) {
+        player.health = clamp(player.health + pk.heal, 0, player.maxHealth);
+        spawnPopup(player.x, player.y - 110, '+' + pk.heal, '#3ddc6b');
+        spawnHit(player.x, player.y - 60, '#3ddc6b');
+        pk.life = 0;
+      }
+    }
+    pickups = pickups.filter(pk => pk.life > 0);
+
     if (!player.alive) {
-      state = 'gameover';
+      if (lives > 1) {
+        lives--;
+        player.alive = true;
+        player.health = Math.round(player.maxHealth * 0.55);
+        player.invuln = 1600;
+        player.knockX = 0;
+        bannerText = 'GET BACK IN THERE';
+        bannerTimer = 1400;
+      } else {
+        state = 'gameover';
+      }
     } else if (!boss && allWavesCleared() && bannerTimer <= 0) {
       nextLevel();
     }
@@ -807,16 +1020,34 @@
     const p = player;
     ctx.save();
     ctx.font = '10px monospace';
+
+    // portrait
+    px(ctx, 20, 14, 40, 40, '#111');
+    ctx.strokeStyle = '#ffd23f'; ctx.lineWidth = 2;
+    ctx.strokeRect(20, 14, 40, 40);
+    px(ctx, 32, 20, 16, 14, p.def.palette.skin);
+    px(ctx, 31, 17, 18, 6, p.def.palette.hair);
+    px(ctx, 26, 36, 28, 16, p.def.palette.shirt);
+    if (p.def.palette.glasses) px(ctx, 33, 27, 14, 3, '#1a1a1a');
+
     // health bar
-    px(ctx, 20, 16, 220, 18, '#111');
-    px(ctx, 22, 18, 216 * clamp(p.health / p.maxHealth, 0, 1), 14, p.health > p.maxHealth*0.3 ? '#3ddc6b' : '#ff4d4d');
+    px(ctx, 66, 16, 174, 16, '#111');
+    px(ctx, 68, 18, 170 * clamp(p.health / p.maxHealth, 0, 1), 12, p.health > p.maxHealth*0.3 ? '#3ddc6b' : '#ff4d4d');
     ctx.fillStyle = '#fff';
-    ctx.fillText(p.def.name.split(' ')[0].toUpperCase(), 24, 44);
+    ctx.fillText(p.def.name.split(' ')[0].toUpperCase(), 68, 44);
+
+    // lives
+    for (let i = 0; i < lives; i++) {
+      px(ctx, 68 + i * 12, 48, 8, 8, '#ff6b6b');
+    }
+    ctx.fillStyle = '#aaa';
+    ctx.fillText('LIVES', 68 + lives * 12 + 6, 56);
 
     // meter
-    px(ctx, 20, 48, 160, 10, '#111');
-    px(ctx, 22, 50, 156 * clamp(p.meter / p.maxMeter, 0, 1), 6, '#4fc3f7');
-    ctx.fillText('SPECIAL', 186, 57);
+    px(ctx, 20, 62, 160, 10, '#111');
+    px(ctx, 22, 64, 156 * clamp(p.meter / p.maxMeter, 0, 1), 6, '#4fc3f7');
+    ctx.fillStyle = '#fff';
+    ctx.fillText('SPECIAL', 186, 71);
 
     // level name
     ctx.textAlign = 'right';
@@ -848,7 +1079,7 @@
     for (const d of drawables) {
       if (d === player) {
         drawFigure(ctx, d.x - camX, d.y, {
-          facing: d.facing, scale: 1, palette: d.def.palette, pose: d.pose, t: d.t,
+          facing: d.facing, scale: 1, palette: d.def.palette, pose: d.pose, t: d.t, progress: d.progress,
           hurt: d.invuln > 0 && Math.floor(d.t / 80) % 2 === 0, jumpZ: d.jumpZ,
         });
       } else if (d === boss) {
@@ -858,12 +1089,26 @@
       } else {
         drawFigure(ctx, d.x - camX, d.y, {
           facing: d.facing, scale: d.def.size || 1, palette: d.def.palette || { skin:'#c99a72',shirt:'#555',pants:'#333',hair:'#222' },
-          pose: d.pose, t: d.t, hurt: d.hurtTimer > 0, jumpZ: d.jumpZ || 0,
+          pose: d.pose, t: d.t, progress: d.progress, hurt: d.hurtTimer > 0, jumpZ: d.jumpZ || 0,
         });
         if (d.def.miniboss) {
           px(ctx, d.x - camX - 40, d.y - 130 * (d.def.size||1) - 14, 80, 6, '#111');
           px(ctx, d.x - camX - 38, d.y - 130 * (d.def.size||1) - 12, 76 * clamp(d.hp/d.maxHp,0,1), 3, '#ff8c3c');
         }
+      }
+    }
+
+    // health pickups
+    for (const pk of pickups) {
+      const bob = Math.sin(pk.t * 0.006) * 4;
+      const blink = pk.life < 2000 && Math.floor(pk.t / 120) % 2 === 0;
+      if (!blink) {
+        ctx.globalAlpha = 0.3;
+        px(ctx, pk.x - camX - 8, pk.y + 2, 16, 5, '#000');
+        ctx.globalAlpha = 1;
+        px(ctx, pk.x - camX - 7, pk.y - 14 + bob, 14, 14, '#3ddc6b');
+        px(ctx, pk.x - camX - 5, pk.y - 12 + bob, 10, 4, '#eafff0');
+        px(ctx, pk.x - camX - 2, pk.y - 16 + bob, 4, 4, '#fff');
       }
     }
 
@@ -918,8 +1163,8 @@
     ctx.fillText('a retro side-scrolling fighter starring the Fantasy Footballers', W/2, 185);
 
     drawFigure(ctx, W/2 - 220, 380, { facing: 1, scale: 2.2, palette: CHAR_DEFS.andy.palette, pose: 'walk', t });
-    drawFigure(ctx, W/2, 380, { facing: 1, scale: 2.2, palette: CHAR_DEFS.jason.palette, pose: 'punch', t: t+300 });
-    drawFigure(ctx, W/2 + 220, 380, { facing: -1, scale: 2.2, palette: CHAR_DEFS.mike.palette, pose: 'idle', t });
+    drawFigure(ctx, W/2, 380, { facing: 1, scale: 2.2, palette: CHAR_DEFS.jason.palette, pose: 'punch', t: t+300, progress: (t % 900) / 900 });
+    drawFigure(ctx, W/2 + 220, 380, { facing: -1, scale: 2.2, palette: CHAR_DEFS.mike.palette, pose: 'kick', t, progress: ((t+450) % 900) / 900 });
 
     if (Math.floor(t / 500) % 2 === 0) {
       ctx.font = 'bold 20px monospace';
@@ -951,7 +1196,7 @@
         ctx.strokeStyle = '#ffd23f'; ctx.lineWidth = 3;
         ctx.strokeRect(cx - 90, 160, 180, 280);
       }
-      drawFigure(ctx, cx, 400, { facing: 1, scale: 2.4, palette: CHAR_DEFS[k].palette, pose: active ? 'punch' : 'idle', t: performance.now() });
+      { const tt = performance.now(); drawFigure(ctx, cx, 400, { facing: 1, scale: 2.4, palette: CHAR_DEFS[k].palette, pose: active ? 'punch' : 'idle', t: tt, progress: active ? (tt % 900) / 900 : 0 }); }
       ctx.globalAlpha = 1;
     });
 
@@ -1049,6 +1294,11 @@
       drawWin();
       if (tapped('Space')) { state = 'title'; }
     }
+
+    // upscale the low-res buffer to the real canvas with smoothing off --
+    // this is what gives the whole game its chunky retro-pixel look
+    screenCtx.imageSmoothingEnabled = false;
+    screenCtx.drawImage(buf, 0, 0, BW, BH, 0, 0, W, H);
 
     justPressed.clear();
     requestAnimationFrame(frame);
