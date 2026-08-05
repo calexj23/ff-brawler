@@ -395,16 +395,19 @@
       px(ctx, 4 * scale, top + 8 * scale, 13 * scale, 4 * scale, '#16296b');    // brim, forward only
     }
     if (vikingHat) {
-      // metal dome + curved horns on both sides -- same deep-coverage lesson
-      // as the ball cap: reach into the head silhouette, don't perch above it
+      // metal dome + BIG three-segment horns that rise well clear of the
+      // head, not tucked in next to it -- the first pass was subtle enough
+      // to vanish behind a raised punching arm. This one can't.
       const top = -dispH;
       px(ctx, -8 * scale, top - 1 * scale, 16 * scale, 8 * scale, '#8a94a3');   // dome
       px(ctx, -8 * scale, top - 1 * scale, 16 * scale, 3 * scale, '#b8c2d1');   // highlight
       px(ctx, -6 * scale, top + 6 * scale, 12 * scale, 3 * scale, '#5a6472');   // rim
-      px(ctx, -14 * scale, top + 1 * scale, 4 * scale, 6 * scale, '#e8dcc0');   // horn L, lower
-      px(ctx, -16 * scale, top - 3 * scale, 4 * scale, 6 * scale, '#e8dcc0');   // horn L, curl
-      px(ctx, 10 * scale, top + 1 * scale, 4 * scale, 6 * scale, '#e8dcc0');    // horn R, lower
-      px(ctx, 12 * scale, top - 3 * scale, 4 * scale, 6 * scale, '#e8dcc0');    // horn R, curl
+      px(ctx, -13 * scale, top, 5 * scale, 7 * scale, '#e8dcc0');              // horn L: base
+      px(ctx, -17 * scale, top - 6 * scale, 5 * scale, 7 * scale, '#e8dcc0');  //         mid
+      px(ctx, -21 * scale, top - 12 * scale, 5 * scale, 6 * scale, '#d9cba8'); //         tip
+      px(ctx, 8 * scale, top, 5 * scale, 7 * scale, '#e8dcc0');                // horn R: base
+      px(ctx, 12 * scale, top - 6 * scale, 5 * scale, 7 * scale, '#e8dcc0');   //         mid
+      px(ctx, 16 * scale, top - 12 * scale, 5 * scale, 6 * scale, '#d9cba8');  //         tip
     }
 
     if (guitar && GUITAR_SWING_POSES.has(pose)) drawGuitar(ctx, scale, 'swing', progress);
