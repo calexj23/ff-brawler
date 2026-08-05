@@ -381,17 +381,18 @@
 
     if (glasses) px(ctx, -8 * scale, -dispH + 10 * scale, 16 * scale, 3 * scale, '#141414');
     if (cap) {
-      // Ball cap, a size up from his actual 16-unit-wide head (not 2x) --
-      // "oversized" as a light gag, not a slab. Domed via a narrower crown
-      // row over a wider base row, with a brim that only projects toward
-      // local +x (the facing direction). No manual facing check needed here:
-      // the canvas is already mirrored for left-facing before this runs, so
-      // a fixed +x offset lands correctly on both sides automatically.
+      // Ball cap. First pass only perched above the head and read as a thin
+      // line, because Andy's rig has genuinely voluminous hair -- confirmed
+      // by actually looking at a screenshot, not guessed. The crown now has
+      // to reach deep enough to cover that hair mass, not just sit on top of
+      // it, or it never reads as "wearing a hat" at all. Brim only projects
+      // toward local +x (the facing direction) -- the canvas is already
+      // mirrored for left-facing by this point, so no manual flip needed.
       const top = -dispH;
-      px(ctx, -7 * scale, top - 1 * scale, 14 * scale, 4 * scale, '#1f3a8a');   // crown, upper (narrow)
-      px(ctx, -10 * scale, top + 2 * scale, 20 * scale, 5 * scale, '#1f3a8a');  // crown, base (wider, overlaps head)
-      px(ctx, -5 * scale, top + 3 * scale, 10 * scale, 2 * scale, '#ffd23f');   // accent band
-      px(ctx, 3 * scale, top + 5 * scale, 10 * scale, 3 * scale, '#16296b');    // brim, forward only
+      px(ctx, -8 * scale, top - 2 * scale, 16 * scale, 6 * scale, '#1f3a8a');   // crown, upper
+      px(ctx, -11 * scale, top + 3 * scale, 22 * scale, 8 * scale, '#1f3a8a');  // crown, base -- deep coverage
+      px(ctx, -6 * scale, top + 4 * scale, 11 * scale, 3 * scale, '#ffd23f');   // accent band
+      px(ctx, 4 * scale, top + 8 * scale, 13 * scale, 4 * scale, '#16296b');    // brim, forward only
     }
 
     if (guitar && GUITAR_SWING_POSES.has(pose)) drawGuitar(ctx, scale, 'swing', progress);
