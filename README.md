@@ -16,6 +16,7 @@ Open `index.html` in any browser (or visit the hosted link once deployed).
 - Dash: double-tap left/right — press J while dashing for a shoulder charge
 - **Grab & throw:** knock an enemy down, and when `GRAB!` flashes over them walk in
   and press J to grab. Then J to knee them, or K to hurl them into the pack.
+- Mute music: M
 
 **Dodging:** enemy fire uses a tight depth window — a quick tap of up or down
 (about 20px) slips the line. The boss shows a red aim line during his windup;
@@ -74,6 +75,10 @@ the show, not an invented gimmick:
 | Andy "Welcome In" Holloway | **Welcome In!** | His real intro catchphrase. Landing it hypes the crowd and gives Andy a real speed buff for a few seconds. |
 | Jason "Mailbag" Moore | **#FootClan Mailbag** | The show's actual recurring listener-question segment. Pulls a real-style mailbag question on screen before the hit lands. |
 | Mike "The Fantasy Hitman" Wright | **The Riff** | Mike genuinely releases the show's guitar-driven intro themes (see *TFFB Intros* on Bandcamp). His special is a literal guitar riff turned into a soundwave projectile, with its own power-chord sound effect. |
+
+## Music
+
+Six looping chiptune tracks (title/select, and one per level theme, plus a faster one for the final boss gate), all procedurally sequenced through Web Audio — no audio files, same "no build step" philosophy as the sound effects. Press M to mute.
 
 ## Tech
 

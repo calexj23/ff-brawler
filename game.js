@@ -224,7 +224,7 @@
 
     function setVolume(v) { if (master) master.gain.value = v; }
 
-    return { play, stop, setVolume, key: () => trackKey };
+    return { play, stop, setVolume };
   })();
 
   // ============================================================
@@ -2815,29 +2815,4 @@
 
   requestAnimationFrame(frame);
   loadSprites().then(() => { state = 'title'; });
-
-  window.__debug = {
-    goto: (ch, levelIdx_) => {
-      selectedChar = ch; selIndex = CHAR_ORDER.indexOf(ch);
-      player = new Player(ch);
-      levelIdx = levelIdx_; lives = START_LIVES; score = 0; scoreShown = 0;
-      loadLevel(levelIdx_);
-      state = 'playing';
-      bannerTimer = 0;
-    },
-    clearEnemies: () => { enemies = enemies.filter(e => e === boss); },
-    forceState: (s) => { state = s; },
-    spawnMini: (key, x, y) => { const e = new Enemy(key, x, y); e.engaged = true; enemies.push(e); return e; },
-    advance: (ms) => {
-      const n = Math.round(ms / 16);
-      for (let i = 0; i < n; i++) {
-        if (tapped('KeyM')) { musicMuted = !musicMuted; Music.setVolume(musicMuted ? 0 : 0.14); }
-        if (state === 'playing') { Music.play(LEVELS[levelIdx].theme); update(16); }
-        else if (state === 'title' || state === 'select') Music.play('title');
-      }
-      if (state === 'playing') render();
-    },
-    musicKey: () => Music.key(),
-    ensureAudio: () => SFX.ensure(),
-  };
 })();
