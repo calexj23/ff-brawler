@@ -75,6 +75,7 @@
     }
     return {
       ensure,
+      getCtx: () => actx,
       whiff() { noise(0.09, 0.07, 1600); },
       hit() { noise(0.10, 0.30, 700); tone(150, 0.09, 'square', 0.18, 70); },
       heavy() { noise(0.16, 0.36, 420); tone(95, 0.16, 'square', 0.24, 45); },
@@ -113,6 +114,117 @@
       // every regular Mike hit lands as a muted guitar-body thwack, not a fist thud
       guitarHit() { noise(0.08, 0.16, 1100); tone(180, 0.08, 'sawtooth', 0.14, 90); },
     };
+  })();
+
+  // ============================================================
+  // Music (procedural step-sequenced loops, one per theme -- shares
+  // SFX's AudioContext so there's a single audio graph and a single
+  // browser-autoplay unlock gate)
+  // ============================================================
+  const Music = (() => {
+    let master = null, timer = null, nextTime = 0, step = 0, track = null, trackKey = null, started = false;
+    const LOOKAHEAD = 0.12, POLL_MS = 30;
+
+    function note(n) { return 440 * Math.pow(2, n / 12); }
+
+    function ensureMaster() {
+      const c = SFX.getCtx();
+      if (!c) return null;
+      if (!master) {
+        master = c.createGain();
+        master.gain.value = 0.14;
+        master.connect(c.destination);
+      }
+      return c;
+    }
+
+    function toneAt(c, time, freq, dur, type, vol) {
+      const o = c.createOscillator(), g = c.createGain();
+      o.type = type;
+      o.frequency.setValueAtTime(freq, time);
+      g.gain.setValueAtTime(0, time);
+      g.gain.linearRampToValueAtTime(vol, time + 0.008);
+      g.gain.exponentialRampToValueAtTime(0.001, time + dur);
+      o.connect(g); g.connect(master);
+      o.start(time); o.stop(time + dur + 0.02);
+    }
+
+    function hatAt(c, time, vol) {
+      const n = Math.floor(c.sampleRate * 0.045);
+      const b = c.createBuffer(1, n, c.sampleRate);
+      const d = b.getChannelData(0);
+      for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
+      const s = c.createBufferSource(); s.buffer = b;
+      const f = c.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 4000;
+      const g = c.createGain(); g.gain.value = vol;
+      s.connect(f); f.connect(g); g.connect(master);
+      s.start(time);
+    }
+
+    // Semitone offsets from A4. Each pattern is one 16-step (4/4, 16th-note) bar.
+    const TRACKS = {
+      title: { bpm: 96, bassWave: 'triangle', leadWave: 'square', bassDur: 0.5, leadDur: 0.22,
+        bass: [-24,null,null,null, -24,null,-21,null, -19,null,null,null, -19,null,-17,null],
+        lead: [null,null,-12,null, null,-9,null,null, null,null,-7,null, -5,null,null,null],
+        hats: [1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0], hatVol: 0.045 },
+      draft: { bpm: 132, bassWave: 'square', leadWave: 'sawtooth', bassDur: 0.16, leadDur: 0.14,
+        bass: [-19,null,-19,null, -16,null,-19,null, -14,null,-14,null, -16,null,-19,null],
+        lead: [null,-7,null,null, -5,null,null,-7, null,-2,null,null, -4,null,null,-7],
+        hats: [1,1,0,1, 1,0,1,1, 1,1,0,1, 1,0,1,1], hatVol: 0.05 },
+      swamp: { bpm: 88, bassWave: 'sine', leadWave: 'triangle', bassDur: 0.6, leadDur: 0.5,
+        bass: [-24,null,null,null, null,null,-21,null, null,null,null,null, -22,null,null,null],
+        lead: [null,null,null,-12, null,null,null,null, -13,null,null,null, null,null,-9,null],
+        hats: [0,0,1,0, 0,0,0,0, 1,0,0,0, 0,0,1,0], hatVol: 0.03 },
+      vegas: { bpm: 118, bassWave: 'square', leadWave: 'sawtooth', bassDur: 0.16, leadDur: 0.14,
+        bass: [-14,null,-12,null, -9,null,-12,null, -7,null,-9,null, -12,null,-14,null],
+        lead: [null,0,null,3, null,0,null,null, 5,null,3,null, null,0,null,7],
+        hats: [1,0,1,1, 0,1,0,1, 1,0,1,0, 1,1,0,1], hatVol: 0.05 },
+      colosseum: { bpm: 110, bassWave: 'triangle', leadWave: 'square', bassDur: 0.3, leadDur: 0.24,
+        bass: [-14,null,null,-14, null,null,-9,null, -14,null,null,-14, null,-7,null,null],
+        lead: [null,null,2,null, null,null,7,null, null,null,2,null, 5,null,7,null],
+        hats: [1,0,0,1, 0,0,1,0, 1,0,0,1, 0,1,0,0], hatVol: 0.05 },
+      boss: { bpm: 144, bassWave: 'sawtooth', leadWave: 'square', bassDur: 0.13, leadDur: 0.12,
+        bass: [-22,-22,null,-22, null,-19,null,-22, -17,-17,null,-17, null,-19,null,-22],
+        lead: [-10,null,-7,null, -3,null,-7,null, -10,null,-5,null, -2,null,-7,null],
+        hats: [1,1,1,1, 1,1,1,1, 1,1,1,1, 1,1,1,1], hatVol: 0.04 },
+    };
+
+    function scheduler() {
+      const c = SFX.getCtx();
+      if (!c || !track) return;
+      const stepDur = 60 / track.bpm / 4;
+      while (nextTime < c.currentTime + LOOKAHEAD) {
+        const i = step % 16;
+        const b = track.bass[i];
+        if (b != null) toneAt(c, nextTime, note(b), track.bassDur, track.bassWave, 0.5);
+        const l = track.lead[i];
+        if (l != null) toneAt(c, nextTime, note(l), track.leadDur, track.leadWave, 0.22);
+        if (track.hats[i]) hatAt(c, nextTime, track.hatVol);
+        nextTime += stepDur;
+        step++;
+      }
+      timer = setTimeout(scheduler, POLL_MS);
+    }
+
+    function play(key) {
+      const c = ensureMaster();
+      if (!c || !TRACKS[key]) return;
+      if (trackKey === key && started) return;
+      stop();
+      track = TRACKS[key];
+      trackKey = key; started = true;
+      step = 0; nextTime = c.currentTime + 0.05;
+      scheduler();
+    }
+
+    function stop() {
+      if (timer) { clearTimeout(timer); timer = null; }
+      started = false; trackKey = null;
+    }
+
+    function setVolume(v) { if (master) master.gain.value = v; }
+
+    return { play, stop, setVolume, key: () => trackKey };
   })();
 
   // ============================================================
@@ -289,7 +401,7 @@
   const SPRITE_DISPLAY_SCALE = 3;
 
   // Attack poses swing the guitar as a weapon; everything else keeps it slung.
-  const GUITAR_SWING_POSES = new Set(['punch', 'kick', 'dashatk', 'jumpatk', 'signature', 'special']);
+  const ATTACK_POSES = new Set(['punch', 'kick', 'dashatk', 'jumpatk', 'signature', 'special']);
 
   // Canvas rotate(θ) sends a local point (0, L) -- "straight down" before any
   // spin -- to parent-space position (-L·sinθ, L·cosθ). Every angle below was
@@ -369,7 +481,35 @@
     if (facing < 0) ctx.scale(-1, 1);
     if (spin) ctx.rotate(spin);
 
-    if (guitar && !GUITAR_SWING_POSES.has(pose)) drawGuitar(ctx, scale, 'slung', progress);
+    // --- secondary procedural motion ------------------------------------
+    // The sprite pack only ships 4-frame idle/walk and single-frame attack
+    // poses. Rather than fake extra in-between frames (which mushes crisp
+    // pixel art), layer squash/stretch and a lean onto the transform: real
+    // anticipation and follow-through on top of the same source frames.
+    let bobY = 0, sx = 1, sy = 1, lean = 0;
+    if (pose === 'walk') {
+      bobY = -Math.abs(Math.sin(t * 0.012)) * 2.4 * scale;
+    } else if (pose === 'idle') {
+      sy = 1 + Math.sin(t * 0.004) * 0.015;
+    } else if (ATTACK_POSES.has(pose)) {
+      const p = clamp(progress, 0, 1);
+      if (p < 0.22) {
+        const q = p / 0.22;
+        sx = 1 - 0.09 * q; sy = 1 + 0.04 * q;
+      } else if (p < 0.42) {
+        const q = (p - 0.22) / 0.2, e = q * (2 - q);
+        sx = 0.91 + 0.27 * e; sy = 0.95 - 0.05 * e; lean = 0.05 * e;
+      } else {
+        const q = clamp((p - 0.42) / 0.3, 0, 1);
+        sx = 1.18 - 0.18 * q; sy = 0.90 + 0.10 * q; lean = 0.05 * (1 - q);
+      }
+    }
+    if (hurt) lean += Math.sin(t * 0.09) * 0.05;
+    ctx.translate(0, bobY);
+    ctx.scale(sx, sy);
+    if (lean) ctx.rotate(lean);
+
+    if (guitar && !ATTACK_POSES.has(pose)) drawGuitar(ctx, scale, 'slung', progress);
 
     let filter = tint || '';
     if (flash) filter = (filter + ' brightness(2.6) saturate(0.15)').trim();
@@ -410,7 +550,7 @@
       px(ctx, 16 * scale, top - 12 * scale, 5 * scale, 6 * scale, '#d9cba8');  //         tip
     }
 
-    if (guitar && GUITAR_SWING_POSES.has(pose)) drawGuitar(ctx, scale, 'swing', progress);
+    if (guitar && ATTACK_POSES.has(pose)) drawGuitar(ctx, scale, 'swing', progress);
 
     if (pose === 'special') {
       ctx.globalAlpha = 0.2 + (0.5 + Math.sin(t * 0.03) * 0.5) * 0.25;
@@ -1789,6 +1929,7 @@
   // Game state
   // ============================================================
   let state = 'loading';
+  let musicMuted = false;
   let selectedChar = 'andy', selIndex = 0;
   const CHAR_ORDER = ['andy', 'jason', 'mike'];
 
@@ -2426,6 +2567,8 @@
     ctx.fillText('MOVE arrows/WASD   PUNCH J (x3 combo)   HEAVY K   SPECIAL L   JUMP space   DASH double-tap', W / 2, 440);
     ctx.fillText('Press J+K together for a signature move — different for every host.', W / 2, 458);
     ctx.fillText('Stun an enemy, walk in and press J to GRAB — then K to throw them into the pack.', W / 2, 476);
+    ctx.fillStyle = '#6a7290';
+    ctx.fillText('M toggles music', W / 2, 492);
 
     if (Math.floor(t / 500) % 2 === 0) {
       ctx.font = 'bold 20px monospace';
@@ -2626,17 +2769,22 @@
     const dt = lastTs ? ts - lastTs : 16;
     lastTs = ts;
 
+    if (tapped('KeyM')) { musicMuted = !musicMuted; Music.setVolume(musicMuted ? 0 : 0.14); }
+
     if (state === 'loading') drawLoading();
     else if (state === 'title') {
+      Music.play('title');
       drawTitle();
       if (tapped('Space')) state = 'select';
     } else if (state === 'select') {
+      Music.play('title');
       if (tapped('ArrowRight') || tapped('KeyD')) selIndex = (selIndex + 1) % CHAR_ORDER.length;
       if (tapped('ArrowLeft') || tapped('KeyA')) selIndex = (selIndex - 1 + CHAR_ORDER.length) % CHAR_ORDER.length;
       selectedChar = CHAR_ORDER[selIndex];
       drawSelect();
       if (tapped('Space')) startGame();
     } else if (state === 'playing') {
+      Music.play(LEVELS[levelIdx].theme);
       update(dt);
       render();
     } else if (state === 'tally') {
@@ -2649,9 +2797,11 @@
         } else { saveHighScore(); nextLevel(); }
       }
     } else if (state === 'gameover') {
+      Music.stop();
       drawGameOver();
       if (tapped('Space')) state = 'select';
     } else if (state === 'win') {
+      Music.play('title');
       drawWin();
       if (tapped('Space')) state = 'title';
     }
@@ -2665,4 +2815,29 @@
 
   requestAnimationFrame(frame);
   loadSprites().then(() => { state = 'title'; });
+
+  window.__debug = {
+    goto: (ch, levelIdx_) => {
+      selectedChar = ch; selIndex = CHAR_ORDER.indexOf(ch);
+      player = new Player(ch);
+      levelIdx = levelIdx_; lives = START_LIVES; score = 0; scoreShown = 0;
+      loadLevel(levelIdx_);
+      state = 'playing';
+      bannerTimer = 0;
+    },
+    clearEnemies: () => { enemies = enemies.filter(e => e === boss); },
+    forceState: (s) => { state = s; },
+    spawnMini: (key, x, y) => { const e = new Enemy(key, x, y); e.engaged = true; enemies.push(e); return e; },
+    advance: (ms) => {
+      const n = Math.round(ms / 16);
+      for (let i = 0; i < n; i++) {
+        if (tapped('KeyM')) { musicMuted = !musicMuted; Music.setVolume(musicMuted ? 0 : 0.14); }
+        if (state === 'playing') { Music.play(LEVELS[levelIdx].theme); update(16); }
+        else if (state === 'title' || state === 'select') Music.play('title');
+      }
+      render();
+    },
+    musicKey: () => Music.key(),
+    ensureAudio: () => SFX.ensure(),
+  };
 })();
