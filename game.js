@@ -2680,5 +2680,15 @@
     triggerBossAttack: (kind) => { if (boss) { boss.attackTelegraph = kind; boss.telegraphTimer = 500; } },
     spawnMini: (key, x, y) => { const e = new Enemy(key, x, y); e.engaged = true; enemies.push(e); return e; },
     triggerTally: () => { stageStats = stageStats || { kills: 5, bestCombo: 7, deaths: 0, startLives: lives }; beginTally(); },
+    triggerSignature: () => {
+      if (!player) return;
+      const sig = player.def.signature;
+      player.startAttack('signature', {
+        dmg: sig.dmg, range: sig.range, dur: sig.dur, strike: sig.strike, knock: sig.knock,
+        knockdown: sig.knockdown, heavy: sig.heavy, aoe: sig.aoe,
+        multiHit: sig.multiHit, tickMs: sig.tickMs, hitboxLife: sig.hitboxLife,
+      });
+      spawnPopup(player.x, player.y - 130, sig.name.toUpperCase(), '#fff', true);
+    },
   };
 })();
