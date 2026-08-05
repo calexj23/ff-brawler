@@ -2679,5 +2679,6 @@
     forceState: (s) => { state = s; },
     triggerBossAttack: (kind) => { if (boss) { boss.attackTelegraph = kind; boss.telegraphTimer = 500; } },
     spawnMini: (key, x, y) => { const e = new Enemy(key, x, y); e.engaged = true; enemies.push(e); return e; },
+    triggerTally: () => { stageStats = stageStats || { kills: 5, bestCombo: 7, deaths: 0, startLives: lives }; beginTally(); },
   };
 })();
