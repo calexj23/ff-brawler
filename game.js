@@ -344,7 +344,7 @@
     const {
       facing = 1, scale = 1, spriteKey = 'ranger', tint = '', pose = 'idle', t = 0, progress = 0,
       hurt = false, jumpZ = 0, flash = false, glasses = false, cap = false, guitar = false,
-      comboStep = 0, spin = 0, variant = null,
+      vikingHat = false, comboStep = 0, spin = 0, variant = null,
     } = opts;
 
     const { def, frame } = pickAnim(spriteKey, pose, progress, t, comboStep, variant);
@@ -393,6 +393,18 @@
       px(ctx, -11 * scale, top + 3 * scale, 22 * scale, 8 * scale, '#1f3a8a');  // crown, base -- deep coverage
       px(ctx, -6 * scale, top + 4 * scale, 11 * scale, 3 * scale, '#ffd23f');   // accent band
       px(ctx, 4 * scale, top + 8 * scale, 13 * scale, 4 * scale, '#16296b');    // brim, forward only
+    }
+    if (vikingHat) {
+      // metal dome + curved horns on both sides -- same deep-coverage lesson
+      // as the ball cap: reach into the head silhouette, don't perch above it
+      const top = -dispH;
+      px(ctx, -8 * scale, top - 1 * scale, 16 * scale, 8 * scale, '#8a94a3');   // dome
+      px(ctx, -8 * scale, top - 1 * scale, 16 * scale, 3 * scale, '#b8c2d1');   // highlight
+      px(ctx, -6 * scale, top + 6 * scale, 12 * scale, 3 * scale, '#5a6472');   // rim
+      px(ctx, -14 * scale, top + 1 * scale, 4 * scale, 6 * scale, '#e8dcc0');   // horn L, lower
+      px(ctx, -16 * scale, top - 3 * scale, 4 * scale, 6 * scale, '#e8dcc0');   // horn L, curl
+      px(ctx, 10 * scale, top + 1 * scale, 4 * scale, 6 * scale, '#e8dcc0');    // horn R, lower
+      px(ctx, 12 * scale, top - 3 * scale, 4 * scale, 6 * scale, '#e8dcc0');    // horn R, curl
     }
 
     if (guitar && GUITAR_SWING_POSES.has(pose)) drawGuitar(ctx, scale, 'swing', progress);
@@ -571,18 +583,26 @@
   }
 
   function drawSwampBg(camX, worldWidth, th) {
+    // distant tree-line silhouette so the far layer isn't just bare sky
+    ctx.globalAlpha = 0.4;
+    for (const { i, bx } of loopX(camX, 0.2, 100, worldWidth)) {
+      px(ctx, bx, 210 + (i % 3) * 8, 60, 170, '#0f1a10');
+    }
+    ctx.globalAlpha = 1;
+    const BARK = '#6b5a3f', BARK_HI = '#8a7452'; // warm, desaturated -- reads against the green
     for (const { i, bx } of loopX(camX, 0.3, 240, worldWidth)) {
-      px(ctx, bx + 40, 200, 10, 180, '#20301f');                 // trunk
+      px(ctx, bx + 40, 200, 10, 180, BARK);                       // trunk
+      px(ctx, bx + 40, 200, 3, 180, BARK_HI);                     // lit edge
       ctx.save(); ctx.translate(bx + 45, 220); ctx.rotate(-0.5);
-      px(ctx, 0, 0, 36, 8, '#20301f'); ctx.restore();            // branch L
+      px(ctx, 0, 0, 36, 8, BARK); ctx.restore();                  // branch L
       ctx.save(); ctx.translate(bx + 45, 245); ctx.rotate(0.45);
-      px(ctx, 0, 0, 32, 7, '#20301f'); ctx.restore();            // branch R
-      ctx.globalAlpha = 0.35;
+      px(ctx, 0, 0, 32, 7, BARK); ctx.restore();                  // branch R
+      ctx.globalAlpha = 0.6;
       for (let m = 0; m < 3; m++) px(ctx, bx + 30 + m * 14, 210 + (i % 3) * 6, 4, 34 + m * 10, '#8fae7c'); // moss
       ctx.globalAlpha = 1;
       if (i % 4 === 2) { // a vulture perched up in the canopy
-        px(ctx, bx + 20, 205, 14, 4, '#4a3b2a'); px(ctx, bx + 40, 205, 14, 4, '#4a3b2a');
-        px(ctx, bx + 30, 198, 10, 10, '#5c4a35');
+        px(ctx, bx + 20, 205, 14, 4, '#3a2f22'); px(ctx, bx + 40, 205, 14, 4, '#3a2f22');
+        px(ctx, bx + 30, 198, 10, 10, '#4a3b2a');
       }
     }
     for (const { i, bx } of loopX(camX, 0.6, 160, worldWidth)) {
@@ -806,15 +826,19 @@
       trait: 'hype', points: 200 },
   };
 
+  // Three level-ending bosses built around real, widely-recognized fantasy
+  // football figures -- reusing the human sprite rigs (recolored + scaled,
+  // same period-authentic trick as the rest of the roster) rather than new art.
   const MINIBOSS_DEFS = {
-    lateround: { name: 'The Late-Round QB', hp: 90, speed: 1.5, dmg: 9, atkRange: 260, atkCd: 1200, size: 1.5, ranged: true, miniboss: true,
-      spriteKey: 'renegade', tint: 'hue-rotate(220deg) saturate(1.4)', projColor: '#f4c542',
-      trait: 'spiral', points: 1000 },
-    alphavulture: { name: 'Alpha Vulture', hp: 105, speed: 2.0, dmg: 8, atkRange: 44, atkCd: 950, size: 1.8, flyer: true, summons: true, miniboss: true,
-      trait: 'divebomb', points: 1200 },
-    cardshark: { name: 'The Card Shark', hp: 135, speed: 2.1, dmg: 9, atkRange: 240, atkCd: 1250, size: 1.5, ranged: true, miniboss: true,
-      spriteKey: 'ranger', tint: 'hue-rotate(300deg) saturate(1.5) brightness(0.85)', projColor: '#ff4fa3',
-      trait: 'cardfan', points: 1400 },
+    lateround: { name: 'Old Man Thielen', hp: 95, speed: 1.2, dmg: 10, atkRange: 52, atkCd: 1300, size: 1.55, miniboss: true,
+      spriteKey: 'renegade', tint: 'hue-rotate(255deg) saturate(1.3) brightness(0.8)', vikingHat: true,
+      trait: 'oldman', points: 1000 },
+    alphavulture: { name: 'P. River', hp: 105, speed: 1.5, dmg: 8, atkRange: 240, atkCd: 1500, size: 1.45, ranged: true, miniboss: true,
+      spriteKey: 'ranger', tint: 'hue-rotate(50deg) saturate(1.3) brightness(1.05)', projColor: '#f4e04d',
+      trait: 'priver', points: 1200 },
+    cardshark: { name: 'GRONK', hp: 155, speed: 1.7, dmg: 12, atkRange: 60, atkCd: 1200, size: 1.95, miniboss: true,
+      spriteKey: 'renegade', tint: 'hue-rotate(355deg) saturate(1.4) brightness(0.85)',
+      trait: 'gronk', points: 1500 },
     formerchamp: { name: 'The Former Champ', hp: 165, speed: 2.0, dmg: 11, atkRange: 50, atkCd: 850, size: 1.7, miniboss: true,
       spriteKey: 'renegade', tint: 'hue-rotate(345deg) saturate(1.5) brightness(0.75)', projColor: '#ffd23f',
       trait: 'tackle', points: 1600 },
@@ -1213,6 +1237,7 @@
       this.hyped = 0;            // buffed by a Trash Talker
       this.sayTimer = 0; this.sayText = '';
       this.diving = false;
+      this.raining = false; this.rainTimer = 0; this.rainX = 0; // P. River's sky-rain attack
     }
     get progress() { return this.attackDuration > 0 ? clamp(1 - this.attackTimer / this.attackDuration, 0, 1) : 0; }
 
@@ -1602,6 +1627,98 @@
           return false;
         }
 
+        // --- Old Man Thielen: mostly a slow, creaky veteran -- pokes at you
+        // at ordinary range like anyone else, but every so often finds one
+        // more route in him and closes the gap fast.
+        case 'oldman': {
+          if (this.lunging > 0) {
+            this.lunging -= dt;
+            this.x = clamp(this.x + this.facing * 6.2, 40, world.width - 40);
+            this.pose = 'walk';
+            if (meleeHits(this.x, this.y, this.facing, player.x, player.y, 50, DEPTH_ENEMY_MELEE)) {
+              player.takeDamage(this.def.dmg, this.x);
+              this.lunging = 0;
+            }
+            return true;
+          }
+          const d = Math.hypot(player.x - this.x, player.y - this.y);
+          if (this.traitCd <= 0 && d > 90) {
+            this.traitCd = 3800;
+            this.facing = player.x > this.x ? 1 : -1;
+            this.lunging = 340;
+            this.say('ONE MORE ROUTE', 1000);
+            return true;
+          }
+          return false;
+        }
+
+        // --- P. River: fires a baseline yellow stream (handled by the
+        // generic `ranged` attack below), plus periodically calls his shot
+        // and rains yellow drops down a whole depth column -- dodged by
+        // moving sideways in X, the one attack in the game that isn't a
+        // depth-lane dodge.
+        case 'priver': {
+          if (this.raining) {
+            this.rainTimer -= dt;
+            if (this.rainTimer <= 0) {
+              for (const off of [-22, 0, 22]) {
+                projectiles.push({
+                  x: this.rainX + off, y: BAND_TOP - 50, vx: 0, vy: 6.5,
+                  dmg: 9, friendly: false, life: 620, w: 10, h: 16, // timed to land right around ground level
+                  color: '#f4e04d', rainDrop: true,
+                });
+              }
+              this.raining = false;
+              this.traitCd = 3600;
+            }
+            return true;
+          }
+          if (this.traitCd <= 0) {
+            this.raining = true; this.rainTimer = 620; this.rainX = player.x;
+            this.say('MAKE IT RAIN', 950);
+            spawnPopup(this.rainX, GROUND_Y - 40, 'INCOMING!', '#f4e04d', true);
+            return true;
+          }
+          return false;
+        }
+
+        // --- GRONK: spikes the ball (a ground-pound AOE) when you're in
+        // his face, or lowers his shoulder for a touchdown-run charge when
+        // you're not. No ranged attack -- he doesn't need one.
+        case 'gronk': {
+          if (this.lunging > 0) {
+            this.lunging -= dt;
+            this.x = clamp(this.x + this.facing * 7.4, 40, world.width - 40);
+            this.pose = 'walk';
+            if (meleeHits(this.x, this.y, this.facing, player.x, player.y, 58, DEPTH_ENEMY_MELEE + 6)) {
+              player.takeDamage(this.def.dmg + 3, this.x);
+              shakeTimer = Math.max(shakeTimer, 160);
+              this.lunging = 0;
+            }
+            return true;
+          }
+          if (this.traitCd <= 0) {
+            const d = Math.hypot(player.x - this.x, player.y - this.y);
+            this.traitCd = 3600;
+            if (d < 75) {
+              shakeTimer = Math.max(shakeTimer, 220);
+              hitStopTimer = Math.max(hitStopTimer, 80);
+              this.say('GRONK SPIKE!', 1000);
+              if (Math.abs(player.x - this.x) < 90 && Math.abs(player.y - this.y) < 60) {
+                player.takeDamage(this.def.dmg + 4, this.x);
+              }
+              spawnHit(this.x, this.y, '#ff8c3c', 16, 1.5);
+              spawnImpactRing(this.x, this.y - 10, '#fff');
+            } else {
+              this.facing = player.x > this.x ? 1 : -1;
+              this.lunging = 420;
+              this.say('TOUCHDOWN RUN', 1000);
+            }
+            return true;
+          }
+          return false;
+        }
+
         default: return false;
       }
     }
@@ -1895,6 +2012,7 @@
     const step = simDt / 16;
     for (const p of projectiles) {
       p.x += p.vx * step;
+      if (p.vy) p.y += p.vy * step;
       p.life -= simDt;
       if (p.trail && Math.random() < 0.5) {
         particles.push({ x: p.x, y: p.y, vx: -p.vx * 0.1, vy: rand(-0.4, 0.4), life: 10, color: '#ffd23f88' });
@@ -1916,8 +2034,15 @@
           }
         }
       } else if (player.alive) {
-        // TIGHT depth window: a small step up or down slips the shot
-        if (pointHits(p.x, p.y, player.x, player.y, 18, DEPTH_PROJECTILE)) {
+        if (p.rainDrop) {
+          // falls straight down through the whole depth band -- dodge is
+          // sideways (X), not the usual up/down depth-lane step
+          if (Math.abs(p.x - player.x) < 17) {
+            player.takeDamage(p.dmg, p.x);
+            p.life = 0;
+          }
+        } else if (pointHits(p.x, p.y, player.x, player.y, 18, DEPTH_PROJECTILE)) {
+          // TIGHT depth window: a small step up or down slips the shot
           player.takeDamage(p.dmg, p.x);
           p.life = 0;
         }
@@ -2123,6 +2248,7 @@
           facing: d.facing, scale: d.def.size || 1, spriteKey: d.def.spriteKey || 'renegade',
           tint: d.def.tint || '', pose: d.pose, t: d.t, progress: d.progress,
           hurt: d.hurtTimer > 0, jumpZ: d.jumpZ || 0, flash: d.flashTimer > 0, spin: d.spin || 0,
+          vikingHat: d.def.vikingHat,
         });
         // dazed = grabbable: flash a prompt so the throw is discoverable
         if (d.dazed && !d.dying) {
@@ -2193,7 +2319,9 @@
     }
 
     for (const p of projectiles) {
-      const px_ = p.x - camX, py_ = p.y - 52;
+      // rain drops fall through real screen-space Y, not the fixed
+      // chest-height offset everything else uses
+      const px_ = p.x - camX, py_ = p.rainDrop ? p.y : p.y - 52;
       if (p.riff) {
         // a real guitar riff, drawn as a soundwave instead of a block
         const dir = p.vx >= 0 ? 1 : -1;
@@ -2202,6 +2330,11 @@
           const wob = Math.sin(p.x * 0.15 + i * 2) * 6;
           px(ctx, px_ - off - 3, py_ + wob - 2, 6, 4, i === 0 ? '#fff' : '#ff5a47');
         }
+      } else if (p.rainDrop) {
+        ctx.globalAlpha = 0.85;
+        px(ctx, px_ - p.w / 2, py_ - p.h / 2, p.w, p.h, p.color);
+        px(ctx, px_ - 1, py_ - p.h / 2 - 10, 2, 10, p.color); // streak trailing up
+        ctx.globalAlpha = 1;
       } else {
         px(ctx, px_ - p.w / 2, py_ - p.h / 2, p.w, p.h, p.color || '#fff');
       }
@@ -2542,5 +2675,6 @@
     clearEnemies: () => { enemies = enemies.filter(e => e === boss); },
     forceState: (s) => { state = s; },
     triggerBossAttack: (kind) => { if (boss) { boss.attackTelegraph = kind; boss.telegraphTimer = 500; } },
+    spawnMini: (key, x, y) => { const e = new Enemy(key, x, y); e.engaged = true; enemies.push(e); return e; },
   };
 })();
