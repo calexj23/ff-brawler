@@ -526,6 +526,160 @@
     boss: { sky: ['#0d0d18', '#1f1030'], deco: '#2a1840', accent: '#ff4d4d' },
   };
 
+  function bgLabel(x, y, w, h, bg, text, textColor) {
+    px(ctx, x, y, w, h, bg);
+    ctx.font = 'bold 9px monospace';
+    ctx.fillStyle = textColor;
+    ctx.textAlign = 'center';
+    ctx.fillText(text, x + w / 2, y + h / 2 + 3);
+    ctx.textAlign = 'left';
+  }
+
+  function loopX(camX, parallax, spacing, worldWidth) {
+    const parX = -camX * parallax;
+    const n = Math.ceil(worldWidth / spacing) + 4;
+    const arr = [];
+    for (let i = 0; i < n; i++) arr.push({ i, bx: (i * spacing + (parX % spacing)) - spacing });
+    return arr;
+  }
+
+  // Each stage gets real silhouettes, not a recolored rectangle -- SOR3/TiT
+  // brightness: more going on per screen, punchier accent pops.
+  function drawDraftBg(camX, worldWidth, th) {
+    for (const { i, bx } of loopX(camX, 0.3, 220, worldWidth)) {
+      px(ctx, bx, 150, 96, 230, th.deco);                       // cubicle wall
+      px(ctx, bx + 18, 186, 60, 40, '#0a1428');                 // monitor screen
+      px(ctx, bx + 22, 193, 44 * (0.5 + 0.5 * Math.sin(i)), 4, th.accent);
+      px(ctx, bx + 22, 200, 30, 4, '#5cc8f5');
+      px(ctx, bx + 22, 207, 38, 4, th.accent);
+      if (i % 3 === 1) px(ctx, bx + 74, 190, 4, 4, '#ff4d4d');  // rec light
+      if (i % 4 === 0) bgLabel(bx + 14, 158, 68, 18, '#12182e', 'UDK', th.accent);
+    }
+    for (const { i, bx } of loopX(camX, 0.6, 150, worldWidth)) {
+      ctx.globalAlpha = 0.75;
+      px(ctx, bx, 300, 54, 130, th.deco);
+      ctx.globalAlpha = 1;
+      if (i % 3 === 0) {
+        px(ctx, bx + 6, 312, 42, 8, '#f0e3c4');                 // stacked draft boards
+        px(ctx, bx + 6, 322, 42, 8, '#f0e3c4');
+        px(ctx, bx + 10, 314, 22, 3, '#1b2038');
+        px(ctx, bx + 10, 324, 28, 3, '#1b2038');
+      } else if (i % 3 === 1) {
+        bgLabel(bx + 4, 304, 46, 16, '#3d1f1f', 'FC', '#ff8c8c');
+      }
+    }
+  }
+
+  function drawSwampBg(camX, worldWidth, th) {
+    for (const { i, bx } of loopX(camX, 0.3, 240, worldWidth)) {
+      px(ctx, bx + 40, 200, 10, 180, '#20301f');                 // trunk
+      ctx.save(); ctx.translate(bx + 45, 220); ctx.rotate(-0.5);
+      px(ctx, 0, 0, 36, 8, '#20301f'); ctx.restore();            // branch L
+      ctx.save(); ctx.translate(bx + 45, 245); ctx.rotate(0.45);
+      px(ctx, 0, 0, 32, 7, '#20301f'); ctx.restore();            // branch R
+      ctx.globalAlpha = 0.35;
+      for (let m = 0; m < 3; m++) px(ctx, bx + 30 + m * 14, 210 + (i % 3) * 6, 4, 34 + m * 10, '#8fae7c'); // moss
+      ctx.globalAlpha = 1;
+      if (i % 4 === 2) { // a vulture perched up in the canopy
+        px(ctx, bx + 20, 205, 14, 4, '#4a3b2a'); px(ctx, bx + 40, 205, 14, 4, '#4a3b2a');
+        px(ctx, bx + 30, 198, 10, 10, '#5c4a35');
+      }
+    }
+    for (const { i, bx } of loopX(camX, 0.6, 160, worldWidth)) {
+      ctx.globalAlpha = 0.5;
+      px(ctx, bx, 330, 60, 100, '#16241c');                      // reed clump backdrop
+      ctx.globalAlpha = 1;
+      if (i % 2 === 0) {
+        ctx.globalAlpha = 0.6 + 0.2 * Math.sin(i * 3);
+        px(ctx, bx + 16, 400, 10, 10, '#a9e08a');                // glowing mushroom
+        px(ctx, bx + 14, 396, 14, 4, '#7fbf6a');
+        ctx.globalAlpha = 1;
+      }
+      ctx.globalAlpha = 0.3;
+      px(ctx, bx, 420, 58, 6, '#8fd3ff');                        // water sheen at the base
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  function drawVegasBg(camX, worldWidth, th) {
+    for (const { i, bx } of loopX(camX, 0.3, 210, worldWidth)) {
+      if (i % 2 === 0) {
+        px(ctx, bx, 170, 70, 210, th.deco);                      // slot machine cabinet
+        px(ctx, bx + 10, 190, 50, 34, '#1a0f2b');
+        ctx.beginPath(); ctx.arc(bx + 35, 207, 14, 0, Math.PI * 2);
+        ctx.fillStyle = i % 4 === 0 ? '#ffd23f' : '#5cc8f5'; ctx.fill();
+        px(ctx, bx + 60, 200, 6, 20, '#ff4fa3');                 // lever
+        if (i % 6 === 0) bgLabel(bx + 6, 240, 58, 16, '#3a1a4d', 'DFS', th.accent);
+      } else {
+        px(ctx, bx + 30, 140, 8, 240, '#3a1a4d');                // neon sign pole
+        for (let d = 0; d < 5; d++) {
+          ctx.globalAlpha = 0.85;
+          px(ctx, bx + 26, 150 + d * 20, 16, 4, d % 2 === 0 ? '#ff4fa3' : '#5cc8f5');
+          ctx.globalAlpha = 1;
+        }
+      }
+    }
+    for (const { i, bx } of loopX(camX, 0.6, 150, worldWidth)) {
+      ctx.globalAlpha = 0.7;
+      px(ctx, bx, 320, 56, 110, '#2a1533');
+      ctx.globalAlpha = 1;
+      if (i % 3 === 0) {
+        px(ctx, bx + 6, 330, 44, 20, '#123d2b');                 // card table felt
+        px(ctx, bx + 12, 322, 10, 14, '#f2e9d0'); px(ctx, bx + 26, 320, 10, 16, '#f2e9d0'); // cards
+      } else {
+        for (let c = 0; c < 3; c++) px(ctx, bx + 10, 400 - c * 6, 30, 5, c % 2 ? '#ffd23f' : '#ff4fa3'); // chip stack
+      }
+    }
+  }
+
+  function drawColosseumBg(camX, worldWidth, th) {
+    for (const { i, bx } of loopX(camX, 0.3, 230, worldWidth)) {
+      px(ctx, bx, 190, 100, 190, th.deco);                       // stone tier
+      px(ctx, bx, 170, 100, 22, '#4a3320');                      // upper step
+      ctx.globalAlpha = 0.6;
+      for (let c = 0; c < 10; c++) {
+        px(ctx, bx + 6 + (c % 5) * 18, 176 + Math.floor(c / 5) * 200, 5, 6,
+          ['#d98f3c', '#c0392b', '#f4c542', '#8a4a2a'][c % 4]);  // crowd dots
+      }
+      ctx.globalAlpha = 1;
+      if (i % 3 === 1) {
+        px(ctx, bx + 20, 196, 60, 46, '#6a1414');                 // banner
+        bgLabel(bx + 20, 196, 60, 20, '#6a1414', 'MEGA', th.accent);
+        bgLabel(bx + 20, 218, 60, 20, '#6a1414', 'BOWL', th.accent);
+      }
+    }
+    for (const { i, bx } of loopX(camX, 0.6, 150, worldWidth)) {
+      ctx.globalAlpha = 0.75;
+      px(ctx, bx + 18, 260, 18, 170, '#3d2a1d');                  // column shaft
+      px(ctx, bx + 12, 254, 30, 10, '#4a3320');                   // capital
+      ctx.globalAlpha = 1;
+      if (i % 2 === 0) {
+        const flick = 0.6 + 0.4 * Math.sin(performance.now() * 0.01 + i);
+        ctx.globalAlpha = flick;
+        px(ctx, bx + 6, 272, 8, 12, '#ff8c3c');                   // torch flame
+        px(ctx, bx + 8, 266, 4, 8, '#ffd23f');
+        ctx.globalAlpha = 1;
+        px(ctx, bx + 5, 284, 10, 6, '#241408');                   // sconce
+      }
+    }
+  }
+
+  function drawGateBg(camX, worldWidth, th) {
+    for (const { i, bx } of loopX(camX, 0.3, 130, worldWidth)) {
+      ctx.globalAlpha = 0.55;
+      px(ctx, bx, 140, 8, 250, '#1b2a66');                        // iron gate bar
+      ctx.globalAlpha = 1;
+    }
+    for (const { i, bx } of loopX(camX, 0.55, 220, worldWidth)) {
+      px(ctx, bx, 160, 70, 230, th.deco);                         // arch pillar
+      px(ctx, bx - 6, 150, 82, 14, '#1b2a66');                    // pillar cap
+      const flick = 0.5 + 0.4 * Math.sin(performance.now() * 0.008 + i * 2);
+      ctx.globalAlpha = flick;
+      px(ctx, bx + 28, 190, 10, 14, '#ff4d4d');                   // ember sconce
+      ctx.globalAlpha = 1;
+    }
+  }
+
   function drawBackground(theme, camX, worldWidth) {
     const th = BG_THEMES[theme];
     const grad = ctx.createLinearGradient(0, 0, 0, H);
@@ -534,21 +688,11 @@
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, W, H);
 
-    const parX = -camX * 0.3;
-    for (let i = 0; i < worldWidth / 220 + 4; i++) {
-      const bx = (i * 220 + (parX % 220)) - 220;
-      px(ctx, bx, 160, 90, 220, th.deco);
-      ctx.globalAlpha = 0.5;
-      px(ctx, bx + 20, 190, 20, 40, th.accent);
-      ctx.globalAlpha = 1;
-    }
-    const parX2 = -camX * 0.6;
-    for (let i = 0; i < worldWidth / 140 + 4; i++) {
-      const bx = (i * 140 + (parX2 % 140)) - 140;
-      ctx.globalAlpha = 0.6;
-      px(ctx, bx, 300, 50, 130, th.deco);
-      ctx.globalAlpha = 1;
-    }
+    if (theme === 'draft') drawDraftBg(camX, worldWidth, th);
+    else if (theme === 'swamp') drawSwampBg(camX, worldWidth, th);
+    else if (theme === 'vegas') drawVegasBg(camX, worldWidth, th);
+    else if (theme === 'colosseum') drawColosseumBg(camX, worldWidth, th);
+    else drawGateBg(camX, worldWidth, th);
 
     // floor band + subtle depth lines so up/down movement reads visually
     px(ctx, 0, GROUND_Y + 76, W, H - (GROUND_Y + 76), '#0c0c14');
