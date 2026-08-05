@@ -2665,39 +2665,4 @@
 
   requestAnimationFrame(frame);
   loadSprites().then(() => { state = 'title'; });
-  window.__debug = {
-    goto: (ch, levelIdx_) => {
-      selectedChar = ch; selIndex = CHAR_ORDER.indexOf(ch);
-      player = new Player(ch);
-      levelIdx = levelIdx_; lives = START_LIVES; score = 0; scoreShown = 0;
-      loadLevel(levelIdx_);
-      state = 'playing';
-      bannerTimer = 0;
-    },
-    setBossHp: (v) => { if (boss) boss.hp = v; },
-    clearEnemies: () => { enemies = enemies.filter(e => e === boss); },
-    forceState: (s) => { state = s; },
-    triggerBossAttack: (kind) => { if (boss) { boss.attackTelegraph = kind; boss.telegraphTimer = 500; } },
-    spawnMini: (key, x, y) => { const e = new Enemy(key, x, y); e.engaged = true; enemies.push(e); return e; },
-    triggerTally: () => { stageStats = stageStats || { kills: 5, bestCombo: 7, deaths: 0, startLives: lives }; beginTally(); },
-    advance: (ms) => {
-      const n = Math.round(ms / 16);
-      for (let i = 0; i < n; i++) {
-        if (state === 'playing') update(16);
-        else if (state === 'tally') drawTally(16);
-        else if (state === 'win') drawWin();
-      }
-      render();
-    },
-    triggerSignature: () => {
-      if (!player) return;
-      const sig = player.def.signature;
-      player.startAttack('signature', {
-        dmg: sig.dmg, range: sig.range, dur: sig.dur, strike: sig.strike, knock: sig.knock,
-        knockdown: sig.knockdown, heavy: sig.heavy, aoe: sig.aoe,
-        multiHit: sig.multiHit, tickMs: sig.tickMs, hitboxLife: sig.hitboxLife,
-      });
-      spawnPopup(player.x, player.y - 130, sig.name.toUpperCase(), '#fff', true);
-    },
-  };
 })();
