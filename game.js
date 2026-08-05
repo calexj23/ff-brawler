@@ -2593,8 +2593,8 @@
     ctx.fillText(score >= highScore ? 'NEW RECORD!' : 'BEST  ' + String(highScore).padStart(7, '0'), W / 2, 290);
 
     const cd = CHAR_DEFS[selectedChar];
-    drawSprite(ctx, W / 2, 470, {
-      facing: 1, scale: 1.7, spriteKey: cd.spriteKey, tint: cd.tint, glasses: cd.glasses,
+    drawSprite(ctx, W / 2, 490, {
+      facing: 1, scale: 1.4, spriteKey: cd.spriteKey, tint: cd.tint, glasses: cd.glasses,
       cap: cd.cap, guitar: cd.guitar, variant: selectedChar,
       accent: cd.accent, pose: 'special', t, progress: (t % 700) / 700,
     });
