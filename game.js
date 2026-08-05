@@ -2835,7 +2835,7 @@
         if (state === 'playing') { Music.play(LEVELS[levelIdx].theme); update(16); }
         else if (state === 'title' || state === 'select') Music.play('title');
       }
-      render();
+      if (state === 'playing') render();
     },
     musicKey: () => Music.key(),
     ensureAudio: () => SFX.ensure(),
