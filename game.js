@@ -303,6 +303,44 @@
     ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h));
   }
 
+  // Speech/callout bubble: targets 5x baseSize for punchy short lines, but
+  // auto-shrinks (down to a 2x floor) and word-wraps rather than blindly
+  // scaling -- a literal 5x on a full-sentence boss line would run well
+  // past the edges of the render buffer.
+  function drawBubble(ctx, cx, cy, text, opts) {
+    const { baseSize = 10, maxWidth = 300, fg = '#fff', bg = '#0d0d18', stroke = '#5c6480', pad = 6 } = opts || {};
+    let size = baseSize * 5;
+    const floor = baseSize * 2;
+    ctx.textAlign = 'center';
+    ctx.font = 'bold ' + size + 'px monospace';
+    while (size > floor && ctx.measureText(text).width > maxWidth) {
+      size -= 2;
+      ctx.font = 'bold ' + size + 'px monospace';
+    }
+    let lines;
+    if (ctx.measureText(text).width <= maxWidth) lines = [text];
+    else {
+      const words = text.split(' ');
+      let line = ''; lines = [];
+      for (const w of words) {
+        const test = line ? line + ' ' + w : w;
+        if (ctx.measureText(test).width > maxWidth && line) { lines.push(line); line = w; }
+        else line = test;
+      }
+      if (line) lines.push(line);
+    }
+    const lh = size * 1.2;
+    let maxLineW = 0;
+    for (const l of lines) maxLineW = Math.max(maxLineW, ctx.measureText(l).width);
+    const boxW = maxLineW + pad * 2, boxH = lines.length * lh + pad * 1.4;
+    const boxTop = cy - boxH + lh * 0.3;
+    if (bg) px(ctx, cx - boxW / 2, boxTop, boxW, boxH, bg);
+    if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 1; ctx.strokeRect(cx - boxW / 2, boxTop, boxW, boxH); }
+    ctx.fillStyle = fg;
+    lines.forEach((l, i) => ctx.fillText(l, cx, boxTop + pad * 0.9 + (i + 1) * lh - lh * 0.25));
+    ctx.textAlign = 'left';
+  }
+
   // Two free "Brawler Series" rigs by chasersgaming (CC0, opengameart.org),
   // explicitly built in the Double Dragon / Streets of Rage mold.
   const SPRITE_SETS = {
@@ -657,15 +695,7 @@
     if (boss.sayTimer > 0 && boss.sayText) {
       ctx.save();
       ctx.globalAlpha = clamp(boss.sayTimer / 400, 0, 1);
-      ctx.font = 'bold 13px monospace';
-      ctx.textAlign = 'center';
-      const tw = ctx.measureText(boss.sayText).width;
-      px(ctx, x - tw / 2 - 8, y - 152, tw + 16, 20, '#0d0d18');
-      ctx.strokeStyle = '#ff4d4d'; ctx.lineWidth = 1;
-      ctx.strokeRect(x - tw / 2 - 8, y - 152, tw + 16, 20);
-      ctx.fillStyle = '#ff8c8c';
-      ctx.fillText(boss.sayText, x, y - 138);
-      ctx.textAlign = 'left';
+      drawBubble(ctx, x, y - 170, boss.sayText, { baseSize: 13, maxWidth: 420, fg: '#ff8c8c', stroke: '#ff4d4d' });
       ctx.restore();
     }
   }
@@ -1010,7 +1040,12 @@
     particles.push({ ring: true, x, y, r: 4, life: 14, color });
   }
   function spawnPopup(x, y, text, color, big) {
-    popups.push({ x, y, text, life: 45, color: color || '#fff', big: !!big });
+    popups.push({ x, y, text, life: 2000, maxLife: 2000, color: color || '#fff', big: !!big });
+  }
+  // damage/heal numbers stay small and quick -- they need to keep pace with
+  // a fast combo string, not linger like a callout or a boss line
+  function spawnDmgPopup(x, y, text, color) {
+    popups.push({ x, y, text, life: 750, maxLife: 750, color: color || '#fff', dmg: true });
   }
 
   // ============================================================
@@ -1086,7 +1121,7 @@
       hitStopTimer = Math.max(hitStopTimer, 45);
       SFX.hurt();
       spawnHit(this.x, this.y - 60, '#ff6b6b');
-      spawnPopup(this.x, this.y - 105, '-' + dmg, '#ff6b6b');
+      spawnDmgPopup(this.x, this.y - 105, '-' + dmg, '#ff6b6b');
       if (this.health <= 0) this.alive = false;
     }
 
@@ -1218,6 +1253,10 @@
             this.comboStep = step + 1;
             this.comboGrace = 520;
           }
+        } else if (tapped('KeyK') && this.jumpZ > 0) {
+          // airborne heavy: a committed stomp that lands late and hits wide,
+          // the K counterpart to J's quick early-striking dive kick
+          this.startAttack('jumpatk', { dmg: this.def.kick.dmg + 6, range: 68, dur: 420, strike: 0.6, knock: 28, knockdown: true, heavy: true, aoe: true });
         } else if (tapped('KeyK') && this.kickCd <= 0 && this.jumpZ === 0) {
           this.startAttack('kick', this.def.kick);
           this.kickCd = this.def.kick.cd;
@@ -1385,7 +1424,7 @@
     get progress() { return this.attackDuration > 0 ? clamp(1 - this.attackTimer / this.attackDuration, 0, 1) : 0; }
 
     say(text, ms) {
-      this.sayText = text; this.sayTimer = ms || 1400;
+      this.sayText = text; this.sayTimer = Math.max(ms || 1400, 2000);
     }
 
     takeDamage(dmg, fromX, knock, knockdown) {
@@ -1410,7 +1449,7 @@
       }
       if (this.grabbedBy && knockdown) { this.grabbedBy.releaseGrab(); }
       if (!this.grabbedBy) this.knockX += (this.x < fromX ? -1 : 1) * (knock || 6);
-      spawnPopup(this.x, this.y - 100, '-' + dmg, '#ffd23f');
+      spawnDmgPopup(this.x, this.y - 100, '-' + dmg, '#ffd23f');
 
       if (this.hp <= 0) {
         this.dying = true; this.deathTimer = 620;
@@ -1949,7 +1988,7 @@
 
   function addScore(n, x, y, label) {
     score += n;
-    if (x != null) spawnPopup(x, y, (label ? label + ' ' : '') + '+' + n, '#ffd23f');
+    if (x != null) spawnDmgPopup(x, y, (label ? label + ' ' : '') + '+' + n, '#ffd23f');
   }
   function saveHighScore() {
     if (score > highScore) {
@@ -2200,14 +2239,14 @@
       pt.x += pt.vx; pt.y += pt.vy; pt.vy += 0.2; pt.life--;
     }
     particles = particles.filter(p => p.life > 0);
-    for (const pop of popups) { pop.y -= 0.6; pop.life--; }
+    for (const pop of popups) { pop.y -= (pop.dmg ? 0.036 : 0.012) * dt; pop.life -= dt; }
     popups = popups.filter(p => p.life > 0);
 
     for (const pk of pickups) {
       pk.t += dt; pk.life -= dt;
       if (player.alive && Math.abs(pk.x - player.x) < 36 && Math.abs(pk.y - player.y) < 34) {
         player.health = clamp(player.health + pk.heal, 0, player.maxHealth);
-        spawnPopup(player.x, player.y - 115, '+' + pk.heal, '#3ddc6b');
+        spawnDmgPopup(player.x, player.y - 115, '+' + pk.heal, '#3ddc6b');
         spawnHit(player.x, player.y - 60, '#3ddc6b');
         SFX.pickup();
         pk.life = 0;
@@ -2406,16 +2445,8 @@
         if (d.sayTimer > 0 && d.sayText && !d.dying) {
           ctx.save();
           ctx.globalAlpha = clamp(d.sayTimer / 350, 0, 1);
-          ctx.font = 'bold 10px monospace';
-          ctx.textAlign = 'center';
-          const tw = ctx.measureText(d.sayText).width;
-          const bx = d.x - camX, by = d.y - 140 * (d.def.size || 1);
-          px(ctx, bx - tw / 2 - 5, by - 11, tw + 10, 15, '#0d0d18');
-          ctx.strokeStyle = '#5c6480'; ctx.lineWidth = 1;
-          ctx.strokeRect(bx - tw / 2 - 5, by - 11, tw + 10, 15);
-          ctx.fillStyle = '#cfd6ea';
-          ctx.fillText(d.sayText, bx, by);
-          ctx.textAlign = 'left';
+          const bx = d.x - camX, by = d.y - 165 * (d.def.size || 1);
+          drawBubble(ctx, bx, by, d.sayText, { baseSize: 10, maxWidth: 280, fg: '#cfd6ea', stroke: '#5c6480' });
           ctx.restore();
         }
         // hyped by a Trash Talker
@@ -2496,12 +2527,16 @@
     }
 
     for (const pop of popups) {
-      ctx.globalAlpha = Math.max(0, pop.life / 45);
-      ctx.fillStyle = pop.color;
-      ctx.font = 'bold ' + (pop.big ? 20 : 14) + 'px monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText(pop.text, pop.x - camX, pop.y);
-      ctx.textAlign = 'left';
+      ctx.globalAlpha = Math.max(0, pop.life / pop.maxLife);
+      if (pop.dmg) {
+        ctx.fillStyle = pop.color;
+        ctx.font = 'bold 14px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(pop.text, pop.x - camX, pop.y);
+        ctx.textAlign = 'left';
+      } else {
+        drawBubble(ctx, pop.x - camX, pop.y, pop.text, { baseSize: pop.big ? 20 : 14, maxWidth: 420, fg: pop.color, bg: null, stroke: null });
+      }
       ctx.globalAlpha = 1;
     }
 
@@ -2815,4 +2850,24 @@
 
   requestAnimationFrame(frame);
   loadSprites().then(() => { state = 'title'; });
+
+  window.__debug = {
+    goto: (ch, levelIdx_) => {
+      selectedChar = ch; selIndex = CHAR_ORDER.indexOf(ch);
+      player = new Player(ch);
+      levelIdx = levelIdx_; lives = START_LIVES; score = 0; scoreShown = 0;
+      loadLevel(levelIdx_);
+      state = 'playing';
+      bannerTimer = 0;
+    },
+    clearEnemies: () => { enemies = enemies.filter(e => e === boss); },
+    spawnMini: (key, x, y) => { const e = new Enemy(key, x, y); e.engaged = true; enemies.push(e); return e; },
+    advance: (ms) => {
+      const n = Math.round(ms / 16);
+      for (let i = 0; i < n; i++) { if (state === 'playing') update(16); }
+      if (state === 'playing') render();
+    },
+    say: (target, text, ms) => { target.say(text, ms); },
+    bossSay: (text, ms) => { if (boss) boss.say(text, ms); },
+  };
 })();
