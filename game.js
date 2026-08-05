@@ -2680,6 +2680,15 @@
     triggerBossAttack: (kind) => { if (boss) { boss.attackTelegraph = kind; boss.telegraphTimer = 500; } },
     spawnMini: (key, x, y) => { const e = new Enemy(key, x, y); e.engaged = true; enemies.push(e); return e; },
     triggerTally: () => { stageStats = stageStats || { kills: 5, bestCombo: 7, deaths: 0, startLives: lives }; beginTally(); },
+    advance: (ms) => {
+      const n = Math.round(ms / 16);
+      for (let i = 0; i < n; i++) {
+        if (state === 'playing') update(16);
+        else if (state === 'tally') drawTally(16);
+        else if (state === 'win') drawWin();
+      }
+      render();
+    },
     triggerSignature: () => {
       if (!player) return;
       const sig = player.def.signature;
