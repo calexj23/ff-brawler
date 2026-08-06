@@ -333,7 +333,9 @@
     let maxLineW = 0;
     for (const l of lines) maxLineW = Math.max(maxLineW, ctx.measureText(l).width);
     const boxW = maxLineW + pad * 2, boxH = lines.length * lh + pad * 1.4;
-    const boxTop = cy - boxH + lh * 0.3;
+    // clamp so a tall box on a big enemy (or a long wrapped line) never
+    // clips above the HUD -- better to sit a little low than be invisible
+    const boxTop = Math.max(88, cy - boxH + lh * 0.3);
     if (bg) px(ctx, cx - boxW / 2, boxTop, boxW, boxH, bg);
     if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 1; ctx.strokeRect(cx - boxW / 2, boxTop, boxW, boxH); }
     ctx.fillStyle = fg;
