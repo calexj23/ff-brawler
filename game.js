@@ -464,24 +464,29 @@
       px(ctx, -3 * s, 21 * s, 6 * s, 6 * s, '#241408');       // sound hole
     } else {
       // three real keyframes -- cocked back-and-up, full extension forward,
-      // settle to a loose forward-down rest -- verified against the formula
-      // above so the swing actually goes where the strike lands.
+      // settle to a forward-down rest. Timed to the exact same breakpoints
+      // (0.22 / 0.42) as the body's own anticipation/snap/settle transform
+      // in drawSprite, so the guitar snaps forward in the same instant the
+      // body does -- it reads as part of his arm, not a separate pendulum.
       const BACK_UP = 2.35;    // -> parent (-0.71L, -0.71L): behind him, raised
       const FORWARD = -1.25;   // -> parent (+0.95L, +0.32L): out in front, low
       const REST = -0.30;      // -> parent (+0.30L, +0.95L): hanging, slight forward lean
       const p = clamp(progress, 0, 1);
-      let ang;
-      if (p < 0.08) {
-        ang = BACK_UP; // brief held anticipation before the whip
-      } else if (p < 0.32) {
-        const q = (p - 0.08) / 0.24;
+      let ang, reach;
+      if (p < 0.22) {
+        const q = p / 0.22;
+        ang = BACK_UP; reach = 1 - 0.15 * q; // slight pull-in during anticipation
+      } else if (p < 0.42) {
+        const q = (p - 0.22) / 0.2;
         const e = q * q * (3 - 2 * q); // smoothstep -- a whip, not a linear crawl
         ang = BACK_UP + (FORWARD - BACK_UP) * e;
+        reach = 0.85 + 0.3 * e; // thrusts outward as it snaps -- an extension, not a hinge
       } else {
-        const q = Math.min(1, (p - 0.32) / 0.68);
+        const q = clamp((p - 0.42) / 0.58, 0, 1);
         ang = FORWARD + (REST - FORWARD) * q;
+        reach = 1.15 - 0.15 * q;
       }
-      ctx.translate(11 * s, -58 * s);
+      ctx.translate(11 * s * reach, -58 * s);
       ctx.rotate(ang);
       px(ctx, -3.5 * s, 0, 7 * s, 26 * s, '#5a3018');         // neck, grip end
       px(ctx, -3.5 * s, -5 * s, 7 * s, 5 * s, '#e8d9b8');
@@ -498,7 +503,7 @@
     const {
       facing = 1, scale = 1, spriteKey = 'ranger', tint = '', pose = 'idle', t = 0, progress = 0,
       hurt = false, jumpZ = 0, flash = false, glasses = false, cap = false, guitar = false,
-      vikingHat = false, comboStep = 0, spin = 0, variant = null,
+      vikingHat = false, beard = false, comboStep = 0, spin = 0, variant = null,
     } = opts;
 
     const { def, frame } = pickAnim(spriteKey, pose, progress, t, comboStep, variant);
@@ -577,19 +582,41 @@
       px(ctx, 4 * scale, top + 8 * scale, 13 * scale, 4 * scale, '#16296b');    // brim, forward only
     }
     if (vikingHat) {
-      // metal dome + BIG three-segment horns that rise well clear of the
-      // head, not tucked in next to it -- the first pass was subtle enough
-      // to vanish behind a raised punching arm. This one can't.
+      // metal dome (deep enough to fully cover the hair mass, not just
+      // perch on top) + a nose guard so it unmistakably reads as a helmet,
+      // not a hat, plus BIG three-segment horns clear of the head.
       const top = -dispH;
-      px(ctx, -8 * scale, top - 1 * scale, 16 * scale, 8 * scale, '#8a94a3');   // dome
+      px(ctx, -8 * scale, top - 1 * scale, 16 * scale, 12 * scale, '#8a94a3');  // dome, deep coverage
       px(ctx, -8 * scale, top - 1 * scale, 16 * scale, 3 * scale, '#b8c2d1');   // highlight
-      px(ctx, -6 * scale, top + 6 * scale, 12 * scale, 3 * scale, '#5a6472');   // rim
+      px(ctx, -6 * scale, top + 10 * scale, 12 * scale, 3 * scale, '#5a6472');  // rim
+      px(ctx, -1.5 * scale, top + 11 * scale, 3 * scale, 9 * scale, '#5a6472'); // nose guard
       px(ctx, -13 * scale, top, 5 * scale, 7 * scale, '#e8dcc0');              // horn L: base
       px(ctx, -17 * scale, top - 6 * scale, 5 * scale, 7 * scale, '#e8dcc0');  //         mid
       px(ctx, -21 * scale, top - 12 * scale, 5 * scale, 6 * scale, '#d9cba8'); //         tip
       px(ctx, 8 * scale, top, 5 * scale, 7 * scale, '#e8dcc0');                // horn R: base
       px(ctx, 12 * scale, top - 6 * scale, 5 * scale, 7 * scale, '#e8dcc0');   //         mid
       px(ctx, 16 * scale, top - 12 * scale, 5 * scale, 6 * scale, '#d9cba8');  //         tip
+    }
+    if (beard) {
+      const top = -dispH;
+      const c = opts.beardColor || '#4a3220';
+      px(ctx, -7 * scale, top + 13 * scale, 14 * scale, 9 * scale, c);   // jawline mass
+      px(ctx, -5 * scale, top + 20 * scale, 10 * scale, 7 * scale, c);   // chin taper
+      px(ctx, -3 * scale, top + 25 * scale, 6 * scale, 4 * scale, c);    // point
+      if (opts.beardLong) {
+        // an old man's beard: keeps going well past the chin
+        px(ctx, -4 * scale, top + 28 * scale, 8 * scale, 8 * scale, c);
+        px(ctx, -2.5 * scale, top + 35 * scale, 5 * scale, 6 * scale, c);
+      }
+    }
+    if (opts.bolt) {
+      // a lightning bolt on the chest -- a simple zigzag of small blocks
+      const top = -dispH;
+      const bc = '#f4e04d';
+      px(ctx, -1 * scale, top + 18 * scale, 5 * scale, 4 * scale, bc);
+      px(ctx, -4 * scale, top + 21 * scale, 5 * scale, 4 * scale, bc);
+      px(ctx, -1 * scale, top + 24 * scale, 5 * scale, 4 * scale, bc);
+      px(ctx, -3 * scale, top + 27 * scale, 4 * scale, 3 * scale, bc);
     }
 
     if (guitar && ATTACK_POSES.has(pose)) drawGuitar(ctx, scale, 'swing', progress);
@@ -937,7 +964,7 @@
     jason: {
       name: 'Jason "Mailbag" Moore',
       tag: 'All-rounder. J+K is a leaping Impression Slam.',
-      spriteKey: 'renegade', tint: 'hue-rotate(280deg) saturate(1.3)', glasses: false, accent: '#ffb703',
+      spriteKey: 'renegade', tint: 'hue-rotate(280deg) saturate(1.3)', glasses: true, accent: '#ffb703',
       speed: 3.4, jumpPow: 14.5, maxHealth: 115,
       combo: comboSet(8, 9, 17),
       kick: { dmg: 13, range: 56, dur: 310, strike: 0.28, cd: 360, knock: 22, knockdown: true, heavy: true },
@@ -952,7 +979,7 @@
     mike: {
       name: 'Mike "The Fantasy Hitman" Wright',
       tag: 'Heaviest hits, longest reach. J+K drops a Power Chord Smash.',
-      spriteKey: 'ranger', tint: 'hue-rotate(190deg) saturate(0.55) brightness(0.7)', glasses: true, guitar: true, accent: '#ff3b3b',
+      spriteKey: 'ranger', tint: 'hue-rotate(190deg) saturate(0.55) brightness(0.7)', glasses: false, beard: true, guitar: true, accent: '#ff3b3b',
       speed: 3.0, jumpPow: 12.5, maxHealth: 135,
       // the guitar is a real weapon: longer reach on every melee hit than fists give Andy/Jason
       combo: comboSet(10, 11, 21).map((h) => ({ ...h, range: h.range + 10 })),
@@ -1009,11 +1036,12 @@
   const MINIBOSS_DEFS = {
     lateround: { name: 'Old Man Thielen', hp: 95, speed: 1.2, dmg: 10, atkRange: 52, atkCd: 1300, size: 1.55, miniboss: true,
       spriteKey: 'renegade', tint: 'hue-rotate(255deg) saturate(1.3) brightness(0.8)', vikingHat: true,
+      beard: true, beardColor: '#e8e4d8', beardLong: true,
       trait: 'oldman', points: 1000 },
     alphavulture: { name: 'P. River', hp: 105, speed: 1.5, dmg: 8, atkRange: 240, atkCd: 1500, size: 1.45, ranged: true, miniboss: true,
-      spriteKey: 'ranger', tint: 'hue-rotate(50deg) saturate(1.3) brightness(1.05)', projColor: '#f4e04d',
+      spriteKey: 'ranger', tint: 'hue-rotate(50deg) saturate(1.3) brightness(1.05)', projColor: '#f4e04d', bolt: true,
       trait: 'priver', points: 1200 },
-    cardshark: { name: 'GRONK', hp: 155, speed: 1.7, dmg: 12, atkRange: 60, atkCd: 1200, size: 1.95, miniboss: true,
+    cardshark: { name: 'GRONK', hp: 155, speed: 1.7, dmg: 12, atkRange: 85, atkCd: 1200, size: 3.9, miniboss: true,
       spriteKey: 'renegade', tint: 'hue-rotate(355deg) saturate(1.4) brightness(0.85)',
       trait: 'gronk', points: 1500 },
     formerchamp: { name: 'The Former Champ', hp: 165, speed: 2.0, dmg: 11, atkRange: 50, atkCd: 850, size: 1.7, miniboss: true,
@@ -1028,6 +1056,9 @@
     'I HAD HIM ON MY BENCH',
     'THAT TRADE WAS A FLEECE',
   ];
+  const THIELEN_LINES = ['MY BACK!', 'BACK IN MY DAY', 'HEY YOUNG FELLA'];
+  const RIVER_LINES = ["NOW I'M PISSED", 'WATCH ME FLOW', 'MAKE IT RAIN'];
+  const GRONK_LINES = ['TIME TO GET GRONKED', 'GETTIN GRONKY WITH IT', 'GRONK LOVES YOU'];
 
   // ============================================================
   // Effects
@@ -1423,7 +1454,7 @@
       this.hyped = 0;            // buffed by a Trash Talker
       this.sayTimer = 0; this.sayText = '';
       this.diving = false;
-      this.raining = false; this.rainTimer = 0; this.rainX = 0; // P. River's sky-rain attack
+      this.raining = false; this.rainTimer = 0; this.rainX = 0; this.rainX2 = 0; // P. River's sky-rain attack
     }
     get progress() { return this.attackDuration > 0 ? clamp(1 - this.attackTimer / this.attackDuration, 0, 1) : 0; }
 
@@ -1832,7 +1863,7 @@
             this.traitCd = 3800;
             this.facing = player.x > this.x ? 1 : -1;
             this.lunging = 340;
-            this.say('ONE MORE ROUTE', 1000);
+            this.say(THIELEN_LINES[Math.floor(Math.random() * THIELEN_LINES.length)], 1000);
             return true;
           }
           return false;
@@ -1847,12 +1878,14 @@
           if (this.raining) {
             this.rainTimer -= dt;
             if (this.rainTimer <= 0) {
-              for (const off of [-22, 0, 22]) {
-                projectiles.push({
-                  x: this.rainX + off, y: BAND_TOP - 50, vx: 0, vy: 6.5,
-                  dmg: 9, friendly: false, life: 620, w: 10, h: 16, // timed to land right around ground level
-                  color: '#f4e04d', rainDrop: true,
-                });
+              for (const spotX of [this.rainX, this.rainX2]) {
+                for (const off of [-22, 0, 22]) {
+                  projectiles.push({
+                    x: spotX + off, y: BAND_TOP - 50, vx: 0, vy: 3.25, // half speed
+                    dmg: 9, friendly: false, life: 1240, w: 10, h: 16, // life doubled to match the slower fall
+                    color: '#f4e04d', rainDrop: true,
+                  });
+                }
               }
               this.raining = false;
               this.traitCd = 3600;
@@ -1860,9 +1893,11 @@
             return true;
           }
           if (this.traitCd <= 0) {
-            this.raining = true; this.rainTimer = 620; this.rainX = player.x;
-            this.say('MAKE IT RAIN', 950);
+            this.raining = true; this.rainTimer = 620;
+            this.rainX = player.x; this.rainX2 = this.x; // two danger zones: on the player, and under him
+            this.say(RIVER_LINES[Math.floor(Math.random() * RIVER_LINES.length)], 950);
             spawnPopup(this.rainX, GROUND_Y - 40, 'INCOMING!', '#f4e04d', true);
+            spawnPopup(this.rainX2, GROUND_Y - 40, 'INCOMING!', '#f4e04d', true);
             return true;
           }
           return false;
@@ -1876,7 +1911,7 @@
             this.lunging -= dt;
             this.x = clamp(this.x + this.facing * 7.4, 40, world.width - 40);
             this.pose = 'walk';
-            if (meleeHits(this.x, this.y, this.facing, player.x, player.y, 58, DEPTH_ENEMY_MELEE + 6)) {
+            if (meleeHits(this.x, this.y, this.facing, player.x, player.y, 80, DEPTH_ENEMY_MELEE + 6)) {
               player.takeDamage(this.def.dmg + 3, this.x);
               shakeTimer = Math.max(shakeTimer, 160);
               this.lunging = 0;
@@ -1886,11 +1921,11 @@
           if (this.traitCd <= 0) {
             const d = Math.hypot(player.x - this.x, player.y - this.y);
             this.traitCd = 3600;
-            if (d < 75) {
+            if (d < 100) {
               shakeTimer = Math.max(shakeTimer, 220);
               hitStopTimer = Math.max(hitStopTimer, 80);
-              this.say('GRONK SPIKE!', 1000);
-              if (Math.abs(player.x - this.x) < 90 && Math.abs(player.y - this.y) < 60) {
+              this.say(GRONK_LINES[Math.floor(Math.random() * GRONK_LINES.length)], 1000);
+              if (Math.abs(player.x - this.x) < 120 && Math.abs(player.y - this.y) < 80) {
                 player.takeDamage(this.def.dmg + 4, this.x);
               }
               spawnHit(this.x, this.y, '#ff8c3c', 16, 1.5);
@@ -1898,7 +1933,7 @@
             } else {
               this.facing = player.x > this.x ? 1 : -1;
               this.lunging = 420;
-              this.say('TOUCHDOWN RUN', 1000);
+              this.say(GRONK_LINES[Math.floor(Math.random() * GRONK_LINES.length)], 1000);
             }
             return true;
           }
@@ -2329,7 +2364,7 @@
     ctx.strokeRect(20, 14, 40, 40);
     ctx.save();
     ctx.beginPath(); ctx.rect(20, 14, 40, 40); ctx.clip();
-    drawSprite(ctx, 40, 54, { facing: 1, scale: 1.05, spriteKey: p.def.spriteKey, tint: p.def.tint, glasses: p.def.glasses, cap: p.def.cap, guitar: p.def.guitar, pose: 'idle', t: p.t });
+    drawSprite(ctx, 40, 54, { facing: 1, scale: 1.05, spriteKey: p.def.spriteKey, tint: p.def.tint, glasses: p.def.glasses, cap: p.def.cap, guitar: p.def.guitar, beard: p.def.beard, pose: 'idle', t: p.t });
     ctx.restore();
 
     px(ctx, 66, 16, 174, 16, '#111');
@@ -2381,12 +2416,20 @@
       ctx.font = '10px monospace';
     }
 
-    if (boss) {
-      px(ctx, W / 2 - 200, 16, 400, 16, '#111');
-      px(ctx, W / 2 - 198, 18, 396 * clamp(boss.hp / boss.maxHp, 0, 1), 12, boss.enraged ? '#ff3b3b' : '#ff8c3c');
+    // active boss/miniboss: a big name banner that stays up for the whole fight
+    const activeMiniboss = !boss && enemies.find((e) => e.def.miniboss && e.alive && !e.dying);
+    if (boss || activeMiniboss) {
+      const b = boss || activeMiniboss;
+      px(ctx, W / 2 - 200, 20, 400, 14, '#111');
+      px(ctx, W / 2 - 198, 22, 396 * clamp(b.hp / b.maxHp, 0, 1), 10, b.enraged ? '#ff3b3b' : '#ff8c3c');
       ctx.textAlign = 'center';
+      ctx.font = 'bold 19px monospace';
+      ctx.fillStyle = '#0b0e18';
+      ctx.fillText(b.def.name.toUpperCase(), W / 2 + 1, 47);
+      ctx.fillText(b.def.name.toUpperCase(), W / 2 - 1, 47);
       ctx.fillStyle = '#fff';
-      ctx.fillText('NUMBER TWOOOOO', W / 2, 12);
+      ctx.fillText(b.def.name.toUpperCase(), W / 2, 47);
+      ctx.font = '10px monospace';
       ctx.textAlign = 'left';
     }
     ctx.restore();
@@ -2420,7 +2463,7 @@
             ? Math.sin(clamp(d.progress, 0, 1) * Math.PI) * 46 : d.jumpZ;
           drawSprite(ctx, d.x - camX, d.y, {
             facing: d.facing, scale: 1, spriteKey: d.def.spriteKey, tint: d.def.tint,
-            glasses: d.def.glasses, cap: d.def.cap, guitar: d.def.guitar, accent: d.def.accent,
+            glasses: d.def.glasses, cap: d.def.cap, guitar: d.def.guitar, beard: d.def.beard, accent: d.def.accent,
             pose: d.pose, t: d.t, variant: d.charKey,
             progress: d.progress, comboStep: d.comboStep - 1,
             hurt: d.invuln > 0 && Math.floor(d.t / 70) % 2 === 0, jumpZ: leapZ,
@@ -2435,7 +2478,8 @@
           facing: d.facing, scale: d.def.size || 1, spriteKey: d.def.spriteKey || 'renegade',
           tint: d.def.tint || '', pose: d.pose, t: d.t, progress: d.progress,
           hurt: d.hurtTimer > 0, jumpZ: d.jumpZ || 0, flash: d.flashTimer > 0, spin: d.spin || 0,
-          vikingHat: d.def.vikingHat,
+          vikingHat: d.def.vikingHat, beard: d.def.beard, beardColor: d.def.beardColor, beardLong: d.def.beardLong,
+          bolt: d.def.bolt,
         });
         // dazed = grabbable: flash a prompt so the throw is discoverable
         if (d.dazed && !d.dying) {
@@ -2598,8 +2642,8 @@
     ctx.fillText('a retro side-scrolling fighter starring the Fantasy Footballers', W / 2, 172);
 
     drawSprite(ctx, W / 2 - 220, 385, { facing: 1, scale: 2.2, spriteKey: CHAR_DEFS.andy.spriteKey, tint: CHAR_DEFS.andy.tint, cap: true, variant: 'andy', pose: 'walk', t });
-    drawSprite(ctx, W / 2, 385, { facing: 1, scale: 2.2, spriteKey: CHAR_DEFS.jason.spriteKey, tint: CHAR_DEFS.jason.tint, variant: 'jason', pose: 'punch', t: t + 300, progress: (t % 800) / 800, comboStep: 0 });
-    drawSprite(ctx, W / 2 + 220, 385, { facing: -1, scale: 2.2, spriteKey: CHAR_DEFS.mike.spriteKey, tint: CHAR_DEFS.mike.tint, glasses: true, guitar: true, variant: 'mike', pose: 'kick', t, progress: ((t + 400) % 800) / 800 });
+    drawSprite(ctx, W / 2, 385, { facing: 1, scale: 2.2, spriteKey: CHAR_DEFS.jason.spriteKey, tint: CHAR_DEFS.jason.tint, glasses: true, variant: 'jason', pose: 'punch', t: t + 300, progress: (t % 800) / 800, comboStep: 0 });
+    drawSprite(ctx, W / 2 + 220, 385, { facing: -1, scale: 2.2, spriteKey: CHAR_DEFS.mike.spriteKey, tint: CHAR_DEFS.mike.tint, beard: true, guitar: true, variant: 'mike', pose: 'kick', t, progress: ((t + 400) % 800) / 800 });
 
     ctx.font = '12px monospace';
     ctx.fillStyle = '#8fd3ff';
@@ -2642,7 +2686,7 @@
       const cd = CHAR_DEFS[k];
       drawSprite(ctx, cx, 400, {
         facing: 1, scale: 2.4, spriteKey: cd.spriteKey, tint: cd.tint, glasses: cd.glasses,
-        cap: cd.cap, guitar: cd.guitar, variant: k,
+        cap: cd.cap, guitar: cd.guitar, beard: cd.beard, variant: k,
         pose: active ? 'punch' : 'idle', t: tt, progress: active ? (tt % 800) / 800 : 0, comboStep: 0,
       });
       ctx.globalAlpha = 1;
@@ -2777,7 +2821,7 @@
     const cd = CHAR_DEFS[selectedChar];
     drawSprite(ctx, W / 2, 490, {
       facing: 1, scale: 1.4, spriteKey: cd.spriteKey, tint: cd.tint, glasses: cd.glasses,
-      cap: cd.cap, guitar: cd.guitar, variant: selectedChar,
+      cap: cd.cap, guitar: cd.guitar, beard: cd.beard, variant: selectedChar,
       accent: cd.accent, pose: 'special', t, progress: (t % 700) / 700,
     });
 
