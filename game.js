@@ -2518,7 +2518,11 @@
         player.releaseGrab();
         bannerText = 'GET BACK IN THERE'; bannerSub = ''; bannerTimer = 1400;
       } else { saveHighScore(); state = 'gameover'; }
-    } else if (!boss && allWavesCleared() && bannerTimer <= 0) {
+    } else if (state === 'playing' && !boss && allWavesCleared() && bannerTimer <= 0) {
+      // guarded on state still being 'playing' -- splitBoss()/startTwoMerge()
+      // can change state earlier in this same tick (boss null, enemies empty
+      // right when the twins die), which would otherwise also look like a
+      // normal "waves cleared" moment and clobber the merge cutscene.
       beginTally();
     }
   }
