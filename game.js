@@ -187,6 +187,12 @@
         bass: [-22,-22,null,-22, null,-19,null,-22, -17,-17,null,-17, null,-19,null,-22],
         lead: [-10,null,-7,null, -3,null,-7,null, -10,null,-5,null, -2,null,-7,null],
         hats: [1,1,1,1, 1,1,1,1, 1,1,1,1, 1,1,1,1], hatVol: 0.04 },
+      // the real triumphant fanfare, played specifically for the 55 reveal --
+      // fast, bright, major-key, constant driving hats
+      victory: { bpm: 150, bassWave: 'square', leadWave: 'square', bassDur: 0.14, leadDur: 0.18,
+        bass: [-12,null,-12,null, -5,null,-5,null, -7,null,-7,null, -5,null,-12,null],
+        lead: [0,null,4,null, 7,null,4,null, 5,null,9,null, 12,null,7,null],
+        hats: [1,1,1,1, 1,1,1,1, 1,1,1,1, 1,1,1,1], hatVol: 0.06 },
     };
 
     function scheduler() {
@@ -598,7 +604,7 @@
       px(ctx, -8 * scale, top - 1 * scale, 16 * scale, 12 * scale, '#8a94a3');  // dome, deep coverage
       px(ctx, -8 * scale, top - 1 * scale, 16 * scale, 3 * scale, '#b8c2d1');   // highlight
       px(ctx, -6 * scale, top + 10 * scale, 12 * scale, 3 * scale, '#5a6472');  // rim
-      px(ctx, -1.5 * scale, top + 11 * scale, 3 * scale, 9 * scale, '#5a6472'); // nose guard
+      px(ctx, -1.5 * scale, top + 11 * scale, 3 * scale, 5 * scale, '#5a6472'); // nose guard -- short, leaves the beard room below
       px(ctx, -13 * scale, top, 5 * scale, 7 * scale, '#e8dcc0');              // horn L: base
       px(ctx, -17 * scale, top - 6 * scale, 5 * scale, 7 * scale, '#e8dcc0');  //         mid
       px(ctx, -21 * scale, top - 12 * scale, 5 * scale, 6 * scale, '#d9cba8'); //         tip
@@ -607,15 +613,24 @@
       px(ctx, 16 * scale, top - 12 * scale, 5 * scale, 6 * scale, '#d9cba8');  //         tip
     }
     if (beard) {
+      // starts below wherever the helmet/cap geometry ends (top+16 for the
+      // shortened viking nose guard) so it never overlaps and muddies into
+      // another accessory -- confirmed via pixel-sampling a live screenshot
+      // that the beard WAS rendering, just visually merging with the helmet.
       const top = -dispH;
       const c = opts.beardColor || '#241408';
-      px(ctx, -7 * scale, top + 13 * scale, 14 * scale, 9 * scale, c);   // jawline mass
-      px(ctx, -5 * scale, top + 20 * scale, 10 * scale, 7 * scale, c);   // chin taper
-      px(ctx, -3 * scale, top + 25 * scale, 6 * scale, 4 * scale, c);    // point
+      px(ctx, -7 * scale, top + 17 * scale, 14 * scale, 9 * scale, c);   // jawline mass
+      px(ctx, -5 * scale, top + 24 * scale, 10 * scale, 7 * scale, c);   // chin taper
+      px(ctx, -3 * scale, top + 29 * scale, 6 * scale, 4 * scale, c);    // point
+      if (opts.beardShade) {
+        // a darker underlayer so a light-colored beard doesn't just read as
+        // a flat blob against a similarly light helmet
+        px(ctx, -7 * scale, top + 23 * scale, 14 * scale, 3 * scale, opts.beardShade);
+      }
       if (opts.beardLong) {
         // an old man's beard: keeps going well past the chin
-        px(ctx, -4 * scale, top + 28 * scale, 8 * scale, 8 * scale, c);
-        px(ctx, -2.5 * scale, top + 35 * scale, 5 * scale, 6 * scale, c);
+        px(ctx, -4 * scale, top + 32 * scale, 8 * scale, 8 * scale, c);
+        px(ctx, -2.5 * scale, top + 39 * scale, 5 * scale, 6 * scale, c);
       }
     }
     if (opts.bolt) {
@@ -1108,15 +1123,15 @@
   const MINIBOSS_DEFS = {
     lateround: { name: 'Old Man Thielen', hp: 95, speed: 1.2, dmg: 10, atkRange: 52, atkCd: 1300, size: 1.55, miniboss: true,
       spriteKey: 'renegade', tint: 'hue-rotate(255deg) saturate(1.3) brightness(0.8)', vikingHat: true,
-      beard: true, beardColor: '#e8e4d8', beardLong: true,
+      beard: true, beardColor: '#f0ead8', beardShade: '#c2b896', beardLong: true,
       trait: 'oldman', points: 1000 },
     alphavulture: { name: 'P. River', hp: 105, speed: 1.5, dmg: 8, atkRange: 240, atkCd: 1500, size: 1.45, ranged: true, miniboss: true,
       spriteKey: 'ranger', tint: 'hue-rotate(50deg) saturate(1.3) brightness(1.05)', projColor: '#f4e04d', bolt: true,
       trait: 'priver', points: 1200 },
-    cardshark: { name: 'GRONK', hp: 155, speed: 1.7, dmg: 12, atkRange: 85, atkCd: 1200, size: 3.9, miniboss: true,
+    cardshark: { name: 'GRONK', hp: 155, speed: 1.7, dmg: 12, atkRange: 85, atkCd: 600, size: 3.9, miniboss: true,
       spriteKey: 'renegade', tint: 'hue-rotate(355deg) saturate(1.4) brightness(0.85)',
       trait: 'gronk', points: 1500 },
-    formerchamp: { name: 'Megalodon', hp: 165, speed: 2.0, dmg: 11, atkRange: 50, atkCd: 850, size: 2.3, miniboss: true,
+    formerchamp: { name: 'Megalodon', hp: 165, speed: 2.0, dmg: 11, atkRange: 50, atkCd: 425, size: 2.3, miniboss: true,
       shark: true, projColor: '#ffd23f',
       trait: 'sharkbite', points: 1600 },
   };
@@ -1529,6 +1544,7 @@
       this.diving = false;
       this.raining = false; this.rainTimer = 0; this.rainX = 0; this.rainX2 = 0; // P. River's sky-rain attack
       this.biting = false; // Megalodon's jaw-open state
+      this.jumping = 0; this.jumpDur = 0; this.jumpTargetX = 0; // GRONK's jump-stomp
     }
     get progress() { return this.attackDuration > 0 ? clamp(1 - this.attackTimer / this.attackDuration, 0, 1) : 0; }
 
@@ -1913,7 +1929,7 @@
           this.biting = false;
           const d = Math.hypot(player.x - this.x, player.y - this.y);
           if (this.traitCd <= 0 && d > 90) {
-            this.traitCd = 4000;
+            this.traitCd = 2000;
             this.facing = player.x > this.x ? 1 : -1;
             this.lunging = 520;
             this.say(SHARK_LINES[Math.floor(Math.random() * SHARK_LINES.length)], 1100);
@@ -1986,6 +2002,25 @@
         // his face, or lowers his shoulder for a touchdown-run charge when
         // you're not. No ranged attack -- he doesn't need one.
         case 'gronk': {
+          if (this.jumping > 0) {
+            this.jumping -= dt;
+            const q = clamp(1 - this.jumping / this.jumpDur, 0, 1);
+            this.jumpZ = Math.sin(q * Math.PI) * 100; // up and back down in one arc
+            this.pose = 'jumpatk';
+            this.x = clamp(this.x + (this.jumpTargetX - this.x) * 0.07, 40, world.width - 40);
+            if (q >= 1) {
+              this.jumping = 0; this.jumpZ = 0;
+              shakeTimer = Math.max(shakeTimer, 260);
+              hitStopTimer = Math.max(hitStopTimer, 90);
+              SFX.slam();
+              if (Math.abs(player.x - this.x) < 110 && Math.abs(player.y - this.y) < 70) {
+                player.takeDamage(this.def.dmg + 6, this.x);
+              }
+              spawnHit(this.x, this.y, '#ff8c3c', 20, 1.6);
+              spawnImpactRing(this.x, this.y - 10, '#fff');
+            }
+            return true;
+          }
           if (this.lunging > 0) {
             this.lunging -= dt;
             this.x = clamp(this.x + this.facing * 7.4, 40, world.width - 40);
@@ -1999,8 +2034,16 @@
           }
           if (this.traitCd <= 0) {
             const d = Math.hypot(player.x - this.x, player.y - this.y);
-            this.traitCd = 3600;
-            if (d < 100) {
+            this.traitCd = 1800;
+            const roll = Math.random();
+            if (roll < 0.3) {
+              this.jumping = 520; this.jumpDur = 520;
+              this.jumpTargetX = clamp(player.x, 40, world.width - 40);
+              this.facing = player.x > this.x ? 1 : -1;
+              this.say(GRONK_LINES[Math.floor(Math.random() * GRONK_LINES.length)], 1000);
+              spawnPopup(this.x, this.y - 150, 'GRONK SMASH INCOMING!', '#ff5a47', true);
+              SFX.jump();
+            } else if (d < 100) {
               shakeTimer = Math.max(shakeTimer, 220);
               hitStopTimer = Math.max(hitStopTimer, 80);
               this.say(GRONK_LINES[Math.floor(Math.random() * GRONK_LINES.length)], 1000);
@@ -2094,7 +2137,7 @@
   let world = { width: 2000, spawnExtra: null, enemies: [] };
   let bannerTimer = 0, bannerText = '', bannerSub = '';
   let boss = null, winTimer = 0;
-  let bossTwins = [], mergeTimer = 0, mergeDone = false;
+  let bossTwins = [], mergeTimer = 0, mergeDone = false, victoryPlayed = false;
   let mergeAX = 0, mergeAY = 0, mergeBX = 0, mergeBY = 0;
   let lives = 4;
   const START_LIVES = 4;
@@ -2267,8 +2310,9 @@
       boss.sx = 1.34; boss.sy = 0.66;   // hard squash on impact
       SFX.slam();
       // ground pound: big x radius but it's a shockwave along the floor, so
-      // it only catches you if you're roughly at its depth
-      if (Math.abs(player.x - boss.x) < 150 && Math.abs(player.y - boss.y) < 46) {
+      // it only catches you if you're roughly at its depth AND still
+      // grounded -- jump the ring and it passes under you, like it should.
+      if (player.jumpZ < 20 && Math.abs(player.x - boss.x) < 150 && Math.abs(player.y - boss.y) < 46) {
         player.takeDamage(8 + boss.phase * 2, boss.x);
       }
       spawnHit(boss.x, GROUND_Y, '#ff8c3c', 20, 1.6);
@@ -2351,9 +2395,9 @@
   function startTwoMerge(twinA, twinB) {
     mergeAX = twinA.x; mergeAY = twinA.y;
     mergeBX = twinB.x; mergeBY = twinB.y;
-    mergeTimer = 0; mergeDone = false;
+    mergeTimer = 0; mergeDone = false; victoryPlayed = false;
     state = 'twomerge';
-    Music.play('title'); // reused as the triumphant finale theme
+    Music.stop(); // silence while the 2s slide together -- the fanfare hits when the 55 lands
   }
 
   function drawTwoMerge(dt) {
@@ -2381,6 +2425,7 @@
       ctx.fillRect(0, 0, W, H);
       ctx.globalAlpha = 1;
     } else {
+      if (!victoryPlayed) { victoryPlayed = true; Music.play('victory'); }
       const pop = clamp((t - flashEnd) / 260, 0, 1);
       const s = 0.6 + 0.4 * pop;
       ctx.save(); ctx.translate(W / 2 - 40, H / 2); ctx.scale(s, s); draw5Glyph(ctx, '#ffd23f'); ctx.restore();
@@ -2713,6 +2758,7 @@
           tint: d.def.tint || '', pose: d.pose, t: d.t, progress: d.progress,
           hurt: d.hurtTimer > 0, jumpZ: d.jumpZ || 0, flash: d.flashTimer > 0, spin: d.spin || 0,
           vikingHat: d.def.vikingHat, beard: d.def.beard, beardColor: d.def.beardColor, beardLong: d.def.beardLong,
+          beardShade: d.def.beardShade,
           bolt: d.def.bolt,
         });
         // dazed = grabbable: flash a prompt so the throw is discoverable
