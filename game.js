@@ -3167,6 +3167,7 @@
       if (state === 'playing') render();
     },
     say: (target, text, ms) => { target.say(text, ms); },
+    setMeter: (v) => { player.meter = v; },
     bossSay: (text, ms) => { if (boss) boss.say(text, ms); },
     setBossHp: (v) => { if (boss) boss.hp = v; },
     killTwins: () => { for (const t of bossTwins) { t.hp = 0; t.dying = true; t.alive = false; t.deathTimer = 0; } },
