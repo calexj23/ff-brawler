@@ -566,7 +566,12 @@
     ctx.drawImage(rec.img, frame * rec.frameW, 0, rec.frameW, rec.frameH, -dispW / 2, -dispH, dispW, dispH);
     ctx.filter = 'none';
 
-    if (glasses) px(ctx, -8 * scale, -dispH + 10 * scale, 16 * scale, 3 * scale, '#141414');
+    if (glasses) {
+      const gy = -dispH + 9 * scale;
+      px(ctx, -9 * scale, gy, 7 * scale, 5 * scale, '#141414');   // left lens
+      px(ctx, 2 * scale, gy, 7 * scale, 5 * scale, '#141414');    // right lens
+      px(ctx, -2 * scale, gy + 1 * scale, 4 * scale, 2 * scale, '#141414'); // bridge
+    }
     if (cap) {
       // Ball cap. First pass only perched above the head and read as a thin
       // line, because Andy's rig has genuinely voluminous hair -- confirmed
