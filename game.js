@@ -333,13 +333,15 @@
     let maxLineW = 0;
     for (const l of lines) maxLineW = Math.max(maxLineW, ctx.measureText(l).width);
     const boxW = maxLineW + pad * 2, boxH = lines.length * lh + pad * 1.4;
-    // clamp so a tall box on a big enemy (or a long wrapped line) never
-    // clips above the HUD -- better to sit a little low than be invisible
+    // clamp so a tall/wide box near a level edge or a big enemy never clips
+    // off-screen -- better to slide over a little than lose the text
+    const margin = 10;
+    let ecx = clamp(cx, margin + boxW / 2, W - margin - boxW / 2);
     const boxTop = Math.max(88, cy - boxH + lh * 0.3);
-    if (bg) px(ctx, cx - boxW / 2, boxTop, boxW, boxH, bg);
-    if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 1; ctx.strokeRect(cx - boxW / 2, boxTop, boxW, boxH); }
+    if (bg) px(ctx, ecx - boxW / 2, boxTop, boxW, boxH, bg);
+    if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 1; ctx.strokeRect(ecx - boxW / 2, boxTop, boxW, boxH); }
     ctx.fillStyle = fg;
-    lines.forEach((l, i) => ctx.fillText(l, cx, boxTop + pad * 0.9 + (i + 1) * lh - lh * 0.25));
+    lines.forEach((l, i) => ctx.fillText(l, ecx, boxTop + pad * 0.9 + (i + 1) * lh - lh * 0.25));
     ctx.textAlign = 'left';
   }
 
