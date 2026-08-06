@@ -424,7 +424,11 @@
         return { def: set.kick2, frame: 0 };
       case 'grab': return { def: set.punch1, frame: 0 };
       case 'throw': return { def: set.kick1, frame: 0 };
-      case 'special': return { def: set.special, frame: progress < 0.5 ? 0 : 1 };
+      case 'special':
+        // Andy's special is a spinning kick, not the generic flourish --
+        // the spin itself is a render-time-only rotation (see render()).
+        if (variant === 'andy') return { def: progress < 0.5 ? set.kick1 : set.kick2, frame: 0 };
+        return { def: set.special, frame: progress < 0.5 ? 0 : 1 };
       // the J+K signature move: Andy's rapid-cycling flurry frames, Jason's
       // leap-then-slam reusing the lunge strip, Mike's big overhead swing.
       case 'signature':
@@ -654,13 +658,84 @@
     ctx.restore();
   }
 
-  function drawRunnerUpBoss(ctx, boss, camX) {
+  // Fourth boss is a giant shark -- no sprite pack has one, so he's drawn
+  // from scratch out of primitives, same technique as the final boss.
+  function drawSharkBoss(ctx, e, camX) {
+    const x = e.x - camX, y = e.y - (e.jumpZ || 0);
+    const s = e.def.size || 1;
+    ctx.save();
+    ctx.translate(x, y);
+    if (e.facing < 0) ctx.scale(-1, 1);
+
+    ctx.globalAlpha = 0.35;
+    px(ctx, -46 * s, 4, 92 * s, 12, '#000');
+    ctx.globalAlpha = 1;
+
+    if (e.flashTimer > 0) ctx.filter = 'brightness(2.4) saturate(0.3)';
+    else if (e.hurtTimer > 0 && Math.floor(e.t / 70) % 2 === 0) ctx.filter = 'brightness(1.8) saturate(0.4)';
+
+    ctx.translate(0, Math.sin(e.t * 0.006) * 3 * s);
+
+    const top = '#5c6b78', belly = '#c9d4d8', fin = '#3f4c56';
+
+    px(ctx, -46 * s, -22 * s, 10 * s, 16 * s, top);       // tail base
+    px(ctx, -52 * s, -32 * s, 9 * s, 12 * s, fin);         // tail fin, upper lobe
+    px(ctx, -52 * s, -12 * s, 9 * s, 9 * s, fin);          // tail fin, lower lobe
+    px(ctx, -36 * s, -30 * s, 60 * s, 30 * s, top);        // body
+    px(ctx, -36 * s, -6 * s, 60 * s, 10 * s, belly);       // pale belly
+    px(ctx, -14 * s, -47 * s, 6 * s, 11 * s, fin);          // dorsal fin, spine
+    px(ctx, -19 * s, -40 * s, 15 * s, 8 * s, fin);          // dorsal fin, sail
+    px(ctx, 4 * s, -9 * s, 17 * s, 9 * s, fin);             // pectoral fin
+    px(ctx, 18 * s, -28 * s, 24 * s, 24 * s, top);          // head
+    px(ctx, 38 * s, -22 * s, 11 * s, 15 * s, top);          // snout tip
+
+    for (const gx of [20, 25, 30]) px(ctx, gx * s, -22 * s, 2 * s, 14 * s, '#2a333a'); // gill slits
+
+    px(ctx, 30 * s, -24 * s, 4 * s, 4 * s, '#fff'); // eye white
+    px(ctx, 31 * s, -23 * s, 2 * s, 2 * s, '#000'); // eye pupil
+
+    // mouth -- yawns open wide for the bite attack, otherwise a narrow line
+    const jaw = (e.biting ? 11 : 3) * s;
+    px(ctx, 18 * s, -6 * s, 31 * s, jaw, '#8c2020');
+    for (let i = 0; i < 5; i++) {
+      px(ctx, (20 + i * 6) * s, -6 * s, 3 * s, 3 * s, '#fff');            // upper teeth
+      px(ctx, (20 + i * 6) * s, -6 * s + jaw - 3 * s, 3 * s, 3 * s, '#fff'); // lower teeth
+    }
+
+    ctx.filter = 'none';
+    ctx.restore();
+  }
+
+  // The final boss's body IS a giant "2" -- and, for the finale, two "5"s.
+  // Both drawn from the same local origin so callers just translate first.
+  function draw2Glyph(ctx, bodyColor, outline) {
+    px(ctx, -34, -84, 68, 16, bodyColor);   // top bar
+    px(ctx, 14, -70, 20, 18, bodyColor);    // right shoulder
+    px(ctx, -2, -54, 20, 18, bodyColor);    // diagonal, upper
+    px(ctx, -18, -38, 20, 18, bodyColor);   // diagonal, lower
+    px(ctx, -34, -14, 68, 16, bodyColor);   // bottom bar
+    if (outline) {
+      ctx.globalAlpha = 0.25;
+      px(ctx, -34, -84, 68, 4, outline);
+      ctx.globalAlpha = 1;
+    }
+  }
+  function draw5Glyph(ctx, bodyColor) {
+    px(ctx, -34, -84, 68, 16, bodyColor);   // top bar
+    px(ctx, -34, -70, 20, 18, bodyColor);   // left, top-to-middle
+    px(ctx, -34, -54, 50, 16, bodyColor);   // middle bar
+    px(ctx, 14, -40, 20, 18, bodyColor);    // right, middle-to-bottom
+    px(ctx, -34, -14, 68, 16, bodyColor);   // bottom bar
+  }
+
+  function drawRunnerUpBoss(ctx, boss, camX, scale) {
     const x = boss.x - camX, y = boss.y - boss.jumpZ;
     const shake = boss.enraged ? rand(-2, 2) : 0;
     const hpRatio = clamp(boss.hp / boss.maxHp, 0, 1);
 
     ctx.save();
     ctx.translate(x + shake + (boss.recoil || 0), y);
+    if (scale && scale !== 1) ctx.scale(scale, scale);
 
     // shadow tracks the squash so he reads as planted
     ctx.globalAlpha = 0.35;
@@ -683,15 +758,7 @@
     ctx.translate(0, breathe + sag);
     ctx.scale(sx, sy);
 
-    px(ctx, -34, -14, 68, 16, bodyColor);
-    px(ctx, -6, -34, 34, 16, bodyColor);
-    px(ctx, -26, -54, 34, 16, bodyColor);
-    px(ctx, -34, -84, 68, 16, bodyColor);
-    px(ctx, -34, -70, 16, 20, bodyColor);
-    px(ctx, 18, -70, 16, 20, bodyColor);
-    ctx.globalAlpha = 0.25;
-    px(ctx, -34, -84, 68, 4, outline);
-    ctx.globalAlpha = 1;
+    draw2Glyph(ctx, bodyColor, outline);
 
     // face plate
     px(ctx, -20, -80, 40, 22, '#f2d9b1');
@@ -973,7 +1040,7 @@
       speed: 3.4, jumpPow: 14.5, maxHealth: 115,
       combo: comboSet(8, 9, 17),
       kick: { dmg: 13, range: 56, dur: 310, strike: 0.28, cd: 360, knock: 22, knockdown: true, heavy: true },
-      special: { name: '#FootClan Mailbag', cost: 35, dmg: 30, range: 150, cd: 800, aoe: true, voice: 'mailbag' },
+      special: { name: '#FootClan Mailbag', cost: 35, dmg: 30, range: 999, cd: 800, projectile: true, envelope: true, voice: 'mailbag' },
       // leaps, comes down with a wide AOE slam -- the only move in the game with airtime
       signature: { name: 'Impression Slam', dur: 620, strike: 0.56, dmg: 22, range: 88, knock: 26,
         knockdown: true, heavy: true, aoe: true, cd: 1400 },
@@ -1049,9 +1116,9 @@
     cardshark: { name: 'GRONK', hp: 155, speed: 1.7, dmg: 12, atkRange: 85, atkCd: 1200, size: 3.9, miniboss: true,
       spriteKey: 'renegade', tint: 'hue-rotate(355deg) saturate(1.4) brightness(0.85)',
       trait: 'gronk', points: 1500 },
-    formerchamp: { name: 'The Former Champ', hp: 165, speed: 2.0, dmg: 11, atkRange: 50, atkCd: 850, size: 1.7, miniboss: true,
-      spriteKey: 'renegade', tint: 'hue-rotate(345deg) saturate(1.5) brightness(0.75)', projColor: '#ffd23f',
-      trait: 'tackle', points: 1600 },
+    formerchamp: { name: 'Megalodon', hp: 165, speed: 2.0, dmg: 11, atkRange: 50, atkCd: 850, size: 2.3, miniboss: true,
+      shark: true, projColor: '#ffd23f',
+      trait: 'sharkbite', points: 1600 },
   };
 
   const TRASH_TALK = [
@@ -1064,6 +1131,7 @@
   const THIELEN_LINES = ['MY BACK!', 'BACK IN MY DAY', 'HEY YOUNG FELLA'];
   const RIVER_LINES = ["NOW I'M PISSED", 'WATCH ME FLOW', 'MAKE IT RAIN'];
   const GRONK_LINES = ['TIME TO GET GRONKED', 'GETTIN GRONKY WITH IT', 'GRONK LOVES YOU'];
+  const SHARK_LINES = ['MEGALA...', 'GET IN MAH BELLY', 'THESE TEETH WERE MADE FOR CHOMPIN'];
 
   // ============================================================
   // Effects
@@ -1370,11 +1438,11 @@
         this.pending = null;
         if (spec.projectile) {
           projectiles.push({
-            x: this.x + this.facing * 24, y: this.y, vx: this.facing * 11,
+            x: this.x + this.facing * 24, y: this.y, vx: this.facing * (spec.envelope ? 8 : 11),
             dmg: spec.dmg, friendly: true, life: 1800, color: '#ff8c3c', w: 18, h: 8, big: true,
-            riff: !!spec.riff,
+            riff: !!spec.riff, envelope: !!spec.envelope,
           });
-          if (!spec.riff) SFX.fire(); // riff already played its own sound on activation
+          if (!spec.riff && !spec.envelope) SFX.fire(); // riff/mailbag already played their own sound on activation
         } else {
           this.hitbox = {
             dmg: spec.dmg, range: spec.range, knock: spec.knock, knockdown: spec.knockdown,
@@ -1460,6 +1528,7 @@
       this.sayTimer = 0; this.sayText = '';
       this.diving = false;
       this.raining = false; this.rainTimer = 0; this.rainX = 0; this.rainX2 = 0; // P. River's sky-rain attack
+      this.biting = false; // Megalodon's jaw-open state
     }
     get progress() { return this.attackDuration > 0 ? clamp(1 - this.attackTimer / this.attackDuration, 0, 1) : 0; }
 
@@ -1824,10 +1893,14 @@
           return true;
         }
 
-        // --- Former Champ: charging shoulder tackle
-        case 'tackle': {
+        // --- Megalodon: circles at range, then charges in for a bite --
+        // the same charge-lunge shape as the old shoulder tackle, just
+        // reframed as a shark closing for the kill, with the jaw visibly
+        // opening for the strike.
+        case 'sharkbite': {
           if (this.lunging > 0) {
             this.lunging -= dt;
+            this.biting = true;
             this.x = clamp(this.x + this.facing * 8.5, 40, world.width - 40);
             this.pose = 'walk';
             if (meleeHits(this.x, this.y, this.facing, player.x, player.y, 56, DEPTH_ENEMY_MELEE + 6)) {
@@ -1837,13 +1910,14 @@
             }
             return true;
           }
+          this.biting = false;
           const d = Math.hypot(player.x - this.x, player.y - this.y);
           if (this.traitCd <= 0 && d > 90) {
             this.traitCd = 4000;
             this.facing = player.x > this.x ? 1 : -1;
             this.lunging = 520;
-            this.say('RING THE BELL', 1100);
-            spawnPopup(this.x, this.y - 150, 'CHARGING!', '#ff5a47');
+            this.say(SHARK_LINES[Math.floor(Math.random() * SHARK_LINES.length)], 1100);
+            spawnPopup(this.x, this.y - 150, 'CHOMP INCOMING!', '#ff5a47');
             return true;
           }
           return false;
@@ -2020,6 +2094,8 @@
   let world = { width: 2000, spawnExtra: null, enemies: [] };
   let bannerTimer = 0, bannerText = '', bannerSub = '';
   let boss = null, winTimer = 0;
+  let bossTwins = [], mergeTimer = 0, mergeDone = false;
+  let mergeAX = 0, mergeAY = 0, mergeBX = 0, mergeBY = 0;
   let lives = 4;
   const START_LIVES = 4;
 
@@ -2070,6 +2146,7 @@
     player.releaseGrab();
     for (const w of lvl.waves) w.spawned = false;
     boss = null;
+    bossTwins = []; mergeTimer = 0;
 
     if (lvl.boss) {
       boss = new Enemy('runnerup', world.width * 0.65, GROUND_Y, {
@@ -2077,7 +2154,7 @@
       });
       boss.phase = 1; boss.enraged = false; boss.attackTelegraph = null;
       boss.slamCd = 2400; boss.fireCd = 1600; boss.summonCd2 = 7000;
-      boss.sx = 1; boss.sy = 1; boss.recoil = 0; boss.lastPhase = 1;
+      boss.sx = 1; boss.sy = 1; boss.recoil = 0; boss.lastPhase = 1; boss.split = false;
       enemies.push(boss);
     }
 
@@ -2119,6 +2196,14 @@
     if (Math.abs(boss.recoil) < 0.2) boss.recoil = 0;
 
     const hpRatio = boss.hp / boss.maxHp;
+
+    // half health: he splits into two independent Number Twos, each
+    // carrying half the remaining HP -- total is conserved, not doubled.
+    if (!boss.split && hpRatio <= 0.5) {
+      splitBoss();
+      return;
+    }
+
     boss.enraged = hpRatio < 0.34;
     boss.phase = hpRatio < 0.34 ? 3 : (hpRatio < 0.66 ? 2 : 1);
 
@@ -2205,6 +2290,122 @@
     }
   }
 
+  function splitBoss() {
+    boss.split = true;
+    const half = Math.max(1, Math.round(boss.maxHp / 2));
+    const bx = boss.x, by = boss.y;
+    const idx = enemies.indexOf(boss);
+    if (idx !== -1) enemies.splice(idx, 1);
+
+    const makeTwin = (x) => {
+      const twin = new Enemy('runnerup', x, by, {
+        name: 'NUMBER TWOOOOO', hp: half, speed: 1.7, dmg: 9, size: 3, customAI: true,
+      });
+      twin.phase = 1; twin.enraged = false; twin.attackTelegraph = null;
+      twin.sx = 1; twin.sy = 1; twin.recoil = 0; twin.atkCd = 900;
+      twin.isTwin = true;
+      return twin;
+    };
+    const twinA = makeTwin(clamp(bx - 90, 60, world.width - 60));
+    const twinB = makeTwin(clamp(bx + 90, 60, world.width - 60));
+    enemies.push(twinA, twinB);
+    bossTwins = [twinA, twinB];
+    boss = null;
+
+    spawnPopup(bx, by - 220, 'HE SPLITS IN TWO!', '#ff4d4d', true);
+    shakeTimer = Math.max(shakeTimer, 320);
+    flashScreenTimer = 220;
+    SFX.heavy();
+  }
+
+  // a simpler combatant than the full boss -- half his HP gets half his
+  // moveset: just a chase-and-bite, no slam/fire/summon telegraphs.
+  // Note: t/hurtTimer/flashTimer/sayTimer/atkCd/dying are already advanced
+  // by the generic Enemy.update() every enemy gets before it falls through
+  // to the customAI early-return -- decrementing them again here would
+  // make every twin timer run at roughly double speed.
+  function updateTwin(e, dt) {
+    if (!e.alive || e.dying) return;
+    e.sx += (1 - e.sx) * 0.16;
+    e.sy += (1 - e.sy) * 0.16;
+    e.recoil *= 0.82;
+    if (Math.abs(e.recoil) < 0.2) e.recoil = 0;
+    if (!player.alive) return;
+
+    e.facing = player.x > e.x ? 1 : -1;
+    const d = Math.hypot(player.x - e.x, player.y - e.y);
+    if (d > 62) {
+      e.x = clamp(e.x + (player.x - e.x) * 0.018, 40, world.width - 40);
+      e.y += (GROUND_Y - e.y) * 0.02;
+    } else if (e.atkCd <= 0) {
+      e.atkCd = 1250;
+      e.sx = 0.85; e.sy = 1.15; e.recoil = (e.x < player.x ? -1 : 1) * 6;
+      shakeTimer = Math.max(shakeTimer, 130);
+      if (Math.abs(player.x - e.x) < 64 && Math.abs(player.y - e.y) < 50) {
+        player.takeDamage(9, e.x);
+      }
+      spawnHit(e.x, e.y - 60, '#ff8c3c', 10, 1.2);
+    }
+  }
+
+  function startTwoMerge(twinA, twinB) {
+    mergeAX = twinA.x; mergeAY = twinA.y;
+    mergeBX = twinB.x; mergeBY = twinB.y;
+    mergeTimer = 0; mergeDone = false;
+    state = 'twomerge';
+    Music.play('title'); // reused as the triumphant finale theme
+  }
+
+  function drawTwoMerge(dt) {
+    mergeTimer += dt;
+    const t = mergeTimer;
+    ctx.fillStyle = '#0d1a10';
+    ctx.fillRect(0, 0, W, H);
+    for (let i = 0; i < 30; i++) {
+      const cx = (i * 53 + t * 0.15) % W;
+      const cy = (i * 97 + t * 0.2) % H;
+      px(ctx, cx, cy, 4, 4, i % 2 === 0 ? '#ffd23f' : '#ff6b6b');
+    }
+
+    const slideEnd = 900, flashEnd = 1150;
+    if (t < slideEnd) {
+      const q = clamp(t / slideEnd, 0, 1);
+      const e = q * q * (3 - 2 * q); // ease -- they accelerate together
+      const ax = mergeAX + (W / 2 - 40 - mergeAX) * e, ay = mergeAY + (H / 2 - mergeAY) * e;
+      const bx = mergeBX + (W / 2 + 40 - mergeBX) * e, by = mergeBY + (H / 2 - mergeBY) * e;
+      ctx.save(); ctx.translate(ax, ay); draw2Glyph(ctx, '#3b5bdb'); ctx.restore();
+      ctx.save(); ctx.translate(bx, by); draw2Glyph(ctx, '#3b5bdb'); ctx.restore();
+    } else if (t < flashEnd) {
+      ctx.globalAlpha = 0.7 * (1 - (t - slideEnd) / (flashEnd - slideEnd));
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, W, H);
+      ctx.globalAlpha = 1;
+    } else {
+      const pop = clamp((t - flashEnd) / 260, 0, 1);
+      const s = 0.6 + 0.4 * pop;
+      ctx.save(); ctx.translate(W / 2 - 40, H / 2); ctx.scale(s, s); draw5Glyph(ctx, '#ffd23f'); ctx.restore();
+      ctx.save(); ctx.translate(W / 2 + 40, H / 2); ctx.scale(s, s); draw5Glyph(ctx, '#ffd23f'); ctx.restore();
+
+      if (t > flashEnd + 200) {
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 20px monospace';
+        ctx.globalAlpha = clamp((t - flashEnd - 200) / 300, 0, 1);
+        ctx.fillText('SOMEHOW... STILL SECOND?', W / 2, H / 2 + 120);
+        ctx.globalAlpha = 1;
+        ctx.textAlign = 'left';
+      }
+    }
+
+    if (t > 3000 && !mergeDone) {
+      mergeDone = true;
+      addScore(5000, W / 2, H / 2 - 200, 'BOSS');
+      saveHighScore();
+      state = 'win'; winTimer = 0;
+      SFX.levelUp();
+    }
+  }
+
   // ============================================================
   // Update
   // ============================================================
@@ -2234,6 +2435,13 @@
     world.enemies = enemies;
 
     if (boss) updateBoss(simDt);
+    if (bossTwins.length) {
+      for (const t of bossTwins) updateTwin(t, simDt);
+      if (bossTwins.every((t) => !t.alive)) {
+        startTwoMerge(bossTwins[0], bossTwins[1]);
+        bossTwins = [];
+      }
+    }
 
     // ---- projectiles ---------------------------------------------------
     const step = simDt / 16;
@@ -2423,17 +2631,26 @@
 
     // active boss/miniboss: a big name banner that stays up for the whole fight
     const activeMiniboss = !boss && enemies.find((e) => e.def.miniboss && e.alive && !e.dying);
-    if (boss || activeMiniboss) {
-      const b = boss || activeMiniboss;
+    const twinsUp = bossTwins.length > 0;
+    if (boss || activeMiniboss || twinsUp) {
+      let hpNow, hpMax, name, enraged;
+      if (twinsUp) {
+        hpNow = bossTwins.reduce((s, t) => s + Math.max(0, t.hp), 0);
+        hpMax = bossTwins.reduce((s, t) => s + t.maxHp, 0);
+        name = 'NUMBER TWOOOOO x2'; enraged = false;
+      } else {
+        const b = boss || activeMiniboss;
+        hpNow = b.hp; hpMax = b.maxHp; name = b.def.name; enraged = b.enraged;
+      }
       px(ctx, W / 2 - 200, 20, 400, 14, '#111');
-      px(ctx, W / 2 - 198, 22, 396 * clamp(b.hp / b.maxHp, 0, 1), 10, b.enraged ? '#ff3b3b' : '#ff8c3c');
+      px(ctx, W / 2 - 198, 22, 396 * clamp(hpNow / hpMax, 0, 1), 10, enraged ? '#ff3b3b' : '#ff8c3c');
       ctx.textAlign = 'center';
       ctx.font = 'bold 19px monospace';
       ctx.fillStyle = '#0b0e18';
-      ctx.fillText(b.def.name.toUpperCase(), W / 2 + 1, 47);
-      ctx.fillText(b.def.name.toUpperCase(), W / 2 - 1, 47);
+      ctx.fillText(name.toUpperCase(), W / 2 + 1, 47);
+      ctx.fillText(name.toUpperCase(), W / 2 - 1, 47);
       ctx.fillStyle = '#fff';
-      ctx.fillText(b.def.name.toUpperCase(), W / 2, 47);
+      ctx.fillText(name.toUpperCase(), W / 2, 47);
       ctx.font = '10px monospace';
       ctx.textAlign = 'left';
     }
@@ -2466,16 +2683,24 @@
           // touches the real jump/gravity system, just this render-time arc.
           const leapZ = (d.pose === 'signature' && d.charKey === 'jason')
             ? Math.sin(clamp(d.progress, 0, 1) * Math.PI) * 46 : d.jumpZ;
+          // Andy's "Welcome In" special is a spinning kick -- like Jason's
+          // leap, purely a render-time flourish, not real physics.
+          const spinAmt = (d.pose === 'special' && d.charKey === 'andy')
+            ? clamp(d.progress, 0, 1) * Math.PI * 4 : 0;
           drawSprite(ctx, d.x - camX, d.y, {
             facing: d.facing, scale: 1, spriteKey: d.def.spriteKey, tint: d.def.tint,
             glasses: d.def.glasses, cap: d.def.cap, guitar: d.def.guitar, beard: d.def.beard, accent: d.def.accent,
             pose: d.pose, t: d.t, variant: d.charKey,
             progress: d.progress, comboStep: d.comboStep - 1,
-            hurt: d.invuln > 0 && Math.floor(d.t / 70) % 2 === 0, jumpZ: leapZ,
+            hurt: d.invuln > 0 && Math.floor(d.t / 70) % 2 === 0, jumpZ: leapZ, spin: spinAmt,
           });
         }
       } else if (d === boss) {
         drawRunnerUpBoss(ctx, boss, camX);
+      } else if (d.isTwin) {
+        drawRunnerUpBoss(ctx, d, camX, 0.72);
+      } else if (d.def.shark) {
+        drawSharkBoss(ctx, d, camX);
       } else if (d.def.flyer) {
         drawVulture(ctx, d.x - camX, d.y - 90 - d.jumpZ, d.t, d.facing);
       } else {
@@ -2558,6 +2783,18 @@
           const wob = Math.sin(p.x * 0.15 + i * 2) * 6;
           px(ctx, px_ - off - 3, py_ + wob - 2, 6, 4, i === 0 ? '#fff' : '#ff5a47');
         }
+      } else if (p.envelope) {
+        // a giant tumbling envelope -- Jason's actual literal "Mailbag"
+        ctx.save();
+        ctx.translate(px_, py_);
+        ctx.rotate(p.x * 0.05);
+        px(ctx, -14, -10, 28, 20, '#f2ead8');
+        ctx.strokeStyle = '#c9bd9a'; ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(-14, -10); ctx.lineTo(0, 2); ctx.lineTo(14, -10);
+        ctx.stroke();
+        px(ctx, -6, -2, 12, 3, '#ff5a47'); // a little stamp of red for "urgent"
+        ctx.restore();
       } else if (p.rainDrop) {
         ctx.globalAlpha = 0.85;
         px(ctx, px_ - p.w / 2, py_ - p.h / 2, p.w, p.h, p.color);
@@ -2875,6 +3112,8 @@
       Music.play(LEVELS[levelIdx].theme);
       update(dt);
       render();
+    } else if (state === 'twomerge') {
+      drawTwoMerge(clamp(dt, 0, 40));
     } else if (state === 'tally') {
       drawTally(clamp(dt, 0, 40));
       if (tapped('Space') && tally.t > 700) {
@@ -2917,10 +3156,16 @@
     spawnMini: (key, x, y) => { const e = new Enemy(key, x, y); e.engaged = true; enemies.push(e); return e; },
     advance: (ms) => {
       const n = Math.round(ms / 16);
-      for (let i = 0; i < n; i++) { if (state === 'playing') update(16); }
+      for (let i = 0; i < n; i++) {
+        if (state === 'playing') update(16);
+        else if (state === 'twomerge') drawTwoMerge(16);
+      }
       if (state === 'playing') render();
     },
     say: (target, text, ms) => { target.say(text, ms); },
     bossSay: (text, ms) => { if (boss) boss.say(text, ms); },
+    setBossHp: (v) => { if (boss) boss.hp = v; },
+    killTwins: () => { for (const t of bossTwins) { t.hp = 0; t.dying = true; t.alive = false; t.deathTimer = 0; } },
+    info: () => ({ state, hasBoss: !!boss, twinCount: bossTwins.length, enemyCount: enemies.length }),
   };
 })();
