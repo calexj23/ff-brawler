@@ -545,7 +545,11 @@
     // anticipation and follow-through on top of the same source frames.
     let bobY = 0, sx = 1, sy = 1, lean = 0;
     if (pose === 'walk') {
-      bobY = -Math.abs(Math.sin(t * 0.012)) * 2.4 * scale;
+      // phase-locked to the walk cycle's own rate (fps 10, 4 frames -> a
+      // 400ms loop) so the bob and the frame cycling agree on where
+      // "footfall" is, instead of drifting in and out of sync -- that
+      // mismatch was the real cause of hats/beards reading as unattached.
+      bobY = -Math.abs(Math.sin(t * 0.0157)) * 2.4 * scale;
     } else if (pose === 'idle') {
       sy = 1 + Math.sin(t * 0.004) * 0.015;
     } else if (ATTACK_POSES.has(pose)) {
@@ -615,22 +619,25 @@
     if (beard) {
       // starts below wherever the helmet/cap geometry ends (top+16 for the
       // shortened viking nose guard) so it never overlaps and muddies into
-      // another accessory -- confirmed via pixel-sampling a live screenshot
-      // that the beard WAS rendering, just visually merging with the helmet.
+      // another accessory. beardLong (old-man) gets a real size bump too --
+      // confirmed via pixel-sampling a live screenshot that a same-scale
+      // beard was rendering but reading as a barely-visible smudge next to
+      // his already-large viking helmet.
       const top = -dispH;
       const c = opts.beardColor || '#241408';
-      px(ctx, -7 * scale, top + 17 * scale, 14 * scale, 9 * scale, c);   // jawline mass
-      px(ctx, -5 * scale, top + 24 * scale, 10 * scale, 7 * scale, c);   // chin taper
-      px(ctx, -3 * scale, top + 29 * scale, 6 * scale, 4 * scale, c);    // point
+      const bs = opts.beardLong ? scale * 1.6 : scale;
+      px(ctx, -7 * bs, top + 17 * scale, 14 * bs, 9 * bs, c);   // jawline mass
+      px(ctx, -5 * bs, top + 17 * scale + 7 * bs, 10 * bs, 7 * bs, c);   // chin taper
+      px(ctx, -3 * bs, top + 17 * scale + 12 * bs, 6 * bs, 4 * bs, c);    // point
       if (opts.beardShade) {
         // a darker underlayer so a light-colored beard doesn't just read as
         // a flat blob against a similarly light helmet
-        px(ctx, -7 * scale, top + 23 * scale, 14 * scale, 3 * scale, opts.beardShade);
+        px(ctx, -7 * bs, top + 17 * scale + 6 * bs, 14 * bs, 3 * bs, opts.beardShade);
       }
       if (opts.beardLong) {
         // an old man's beard: keeps going well past the chin
-        px(ctx, -4 * scale, top + 32 * scale, 8 * scale, 8 * scale, c);
-        px(ctx, -2.5 * scale, top + 39 * scale, 5 * scale, 6 * scale, c);
+        px(ctx, -4 * bs, top + 17 * scale + 15 * bs, 8 * bs, 8 * bs, c);
+        px(ctx, -2.5 * bs, top + 17 * scale + 22 * bs, 5 * bs, 6 * bs, c);
       }
     }
     if (opts.bolt) {
@@ -2136,6 +2143,7 @@
   let levelIdx = 0, player = null, enemies = [], camX = 0;
   let world = { width: 2000, spawnExtra: null, enemies: [] };
   let bannerTimer = 0, bannerText = '', bannerSub = '';
+  let kickoffTimer = 0;
   let boss = null, winTimer = 0;
   let bossTwins = [], mergeTimer = 0, mergeDone = false, victoryPlayed = false;
   let mergeAX = 0, mergeAY = 0, mergeBX = 0, mergeBY = 0;
@@ -2174,6 +2182,7 @@
     score = 0; scoreShown = 0; tally = null;
     loadLevel(0);
     state = 'playing';
+    kickoffTimer = 2000;
   }
 
   function loadLevel(idx) {
@@ -2460,6 +2469,7 @@
     shakeTimer = Math.max(0, shakeTimer - dt);
     flashScreenTimer = Math.max(0, flashScreenTimer - dt);
     if (bannerTimer > 0) bannerTimer -= dt;
+    if (kickoffTimer > 0) kickoffTimer -= dt;
     if (state !== 'playing') return;
 
     let simDt = dt;
@@ -2906,6 +2916,26 @@
       ctx.globalAlpha = 1;
     }
 
+    if (kickoffTimer > 0) {
+      // the big kickoff hype moment -- bigger and higher up than the level
+      // banner so the two don't just stack into a mess at game start
+      const pop = clamp(1 - kickoffTimer / 2000, 0, 1);
+      const punch = pop < 0.15 ? 1.3 - pop * 2 : 1; // quick overshoot on entry
+      ctx.save();
+      ctx.globalAlpha = clamp(kickoffTimer / 350, 0, 1);
+      ctx.translate(W / 2, 130);
+      ctx.scale(punch, punch);
+      ctx.textAlign = 'center';
+      ctx.font = 'bold 46px monospace';
+      ctx.fillStyle = '#0b0e18';
+      ctx.fillText('DO IT!!!', 2, 2);
+      ctx.fillStyle = '#ffd23f';
+      ctx.fillText('DO IT!!!', 0, 0);
+      ctx.textAlign = 'left';
+      ctx.restore();
+      ctx.globalAlpha = 1;
+    }
+
     ctx.restore();
   }
 
@@ -3092,7 +3122,7 @@
     ctx.textAlign = 'center';
     ctx.fillStyle = '#fff';
     ctx.font = 'bold 32px monospace';
-    ctx.fillText('NUMBER TWOOOOO FALLS!', W / 2, 120);
+    ctx.fillText('YOU ARE A TRUE BALLER', W / 2, 120);
     ctx.font = 'bold 22px monospace';
     ctx.fillStyle = '#ffd23f';
     ctx.fillText(CHAR_DEFS[selectedChar].name, W / 2, 160);
