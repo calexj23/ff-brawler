@@ -301,6 +301,90 @@
     return Math.abs(px_ - tx) <= xTol && Math.abs(py_ - ty) <= depth;
   }
 
+  // Bold wraparound "blade" shades with a gradient tint -- drawn over the
+  // real host photos for the 90's-style title/select screens.
+  function drawCoolGlasses(ctx, cx, cy, s) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    const grad = ctx.createLinearGradient(-40 * s, -15 * s, 40 * s, 15 * s);
+    grad.addColorStop(0, '#ff5fa2');
+    grad.addColorStop(0.5, '#7c5cff');
+    grad.addColorStop(1, '#3fd7ff');
+
+    ctx.fillStyle = '#0b0b0b';
+    ctx.beginPath();
+    ctx.moveTo(-46 * s, -6 * s); ctx.lineTo(-6 * s, -12 * s);
+    ctx.lineTo(-4 * s, 14 * s); ctx.lineTo(-44 * s, 16 * s);
+    ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(46 * s, -6 * s); ctx.lineTo(6 * s, -12 * s);
+    ctx.lineTo(4 * s, 14 * s); ctx.lineTo(44 * s, 16 * s);
+    ctx.closePath(); ctx.fill();
+
+    ctx.globalAlpha = 0.6;
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.moveTo(-42 * s, -3 * s); ctx.lineTo(-8 * s, -8 * s);
+    ctx.lineTo(-6 * s, 11 * s); ctx.lineTo(-40 * s, 13 * s);
+    ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(42 * s, -3 * s); ctx.lineTo(8 * s, -8 * s);
+    ctx.lineTo(6 * s, 11 * s); ctx.lineTo(40 * s, 13 * s);
+    ctx.closePath(); ctx.fill();
+    ctx.globalAlpha = 1;
+
+    ctx.fillStyle = '#0b0b0b';
+    ctx.fillRect(-6 * s, -11 * s, 12 * s, 5 * s);
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+    ctx.lineWidth = 2 * s;
+    ctx.beginPath(); ctx.moveTo(-36 * s, -1 * s); ctx.lineTo(-24 * s, 4 * s); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(24 * s, 4 * s); ctx.lineTo(36 * s, -1 * s); ctx.stroke();
+    ctx.restore();
+  }
+
+  // A chunky-bordered 90's photo portrait: real headshot + cool shades,
+  // in a colored frame with a drop shadow.
+  function drawPhotoPortrait(ctx, key, cx, cy, size, borderColor, dimmed) {
+    const rec = HOST_PHOTOS[key];
+    ctx.save();
+    ctx.globalAlpha = dimmed ? 0.4 : 1;
+    px(ctx, cx - size / 2 + 5, cy - size / 2 + 5, size, size, 'rgba(0,0,0,0.4)'); // drop shadow
+    px(ctx, cx - size / 2 - 5, cy - size / 2 - 5, size + 10, size + 10, borderColor); // chunky frame
+    if (rec && rec.loaded) {
+      ctx.drawImage(rec.img, cx - size / 2, cy - size / 2, size, size);
+    } else {
+      px(ctx, cx - size / 2, cy - size / 2, size, size, '#222');
+    }
+    const eyeY = cy - size / 2 + size * 0.4;
+    drawCoolGlasses(ctx, cx, eyeY, size / 198 * 1.05);
+    ctx.restore();
+  }
+
+  // synthwave-style perspective grid for the 90's title/select backdrop
+  function draw90sGrid(ctx, t) {
+    const grad = ctx.createLinearGradient(0, 0, 0, H);
+    grad.addColorStop(0, '#1a0a2e');
+    grad.addColorStop(0.55, '#3d1361');
+    grad.addColorStop(1, '#0d0221');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
+
+    const horizon = H * 0.58;
+    ctx.strokeStyle = 'rgba(255,79,163,0.5)';
+    ctx.lineWidth = 1;
+    for (let i = 1; i <= 10; i++) {
+      const y = horizon + (H - horizon) * (i / 10) * (i / 10);
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+    }
+    for (let i = -8; i <= 8; i++) {
+      const topX = W / 2 + i * 40, botX = W / 2 + i * 160;
+      ctx.beginPath(); ctx.moveTo(topX, horizon); ctx.lineTo(botX, H); ctx.stroke();
+    }
+    ctx.fillStyle = 'rgba(255,210,35,0.12)';
+    ctx.beginPath(); ctx.arc(W / 2, horizon, 90, 0, Math.PI * 2); ctx.fill();
+  }
+
   // ============================================================
   // Sprites (real hand-drawn CC0 pixel-art frames)
   // ============================================================
@@ -399,6 +483,25 @@
         }));
         img.src = def.src;
       }
+    }
+    return Promise.all(promises);
+  }
+
+  // Real host headshots, cropped from the show's own site -- used on the
+  // title/select screens only. In-combat sprites stay the pixel-art rig.
+  const HOST_PHOTOS = {};
+  function loadHostPhotos() {
+    const files = { andy: 'assets/andy_photo.png', jason: 'assets/jason_photo.png', mike: 'assets/mike_photo.png' };
+    const promises = [];
+    for (const key in files) {
+      const img = new Image();
+      const rec = { img, loaded: false };
+      HOST_PHOTOS[key] = rec;
+      promises.push(new Promise((resolve) => {
+        img.onload = () => { rec.loaded = true; resolve(); };
+        img.onerror = resolve;
+      }));
+      img.src = files[key];
     }
     return Promise.all(promises);
   }
@@ -581,10 +684,13 @@
     ctx.filter = 'none';
 
     if (glasses) {
-      const gy = -dispH + 9 * scale;
-      px(ctx, -9 * scale, gy, 7 * scale, 5 * scale, '#141414');   // left lens
-      px(ctx, 2 * scale, gy, 7 * scale, 5 * scale, '#141414');    // right lens
-      px(ctx, -2 * scale, gy + 1 * scale, 4 * scale, 2 * scale, '#141414'); // bridge
+      // bigger, bolder frames -- the first pass read as a thin dark smudge
+      const gy = -dispH + 8 * scale;
+      px(ctx, -11 * scale, gy, 9 * scale, 7 * scale, '#141414');   // left lens
+      px(ctx, 2 * scale, gy, 9 * scale, 7 * scale, '#141414');     // right lens
+      px(ctx, -2 * scale, gy + 2 * scale, 4 * scale, 2 * scale, '#141414'); // bridge
+      px(ctx, -10 * scale, gy + 1 * scale, 2 * scale, 2 * scale, '#4a5568'); // left lens highlight
+      px(ctx, 3 * scale, gy + 1 * scale, 2 * scale, 2 * scale, '#4a5568');   // right lens highlight
     }
     if (cap) {
       // Ball cap. First pass only perched above the head and read as a thin
@@ -2098,7 +2204,7 @@
 
   const LEVELS = [
     {
-      name: 'The UDK War Room', theme: 'draft', width: 2200,
+      name: 'Ducers Alley', theme: 'draft', width: 2200,
       waves: [
         wave(200, [['draftee', 700, 380], ['draftee', 760, 440]]),
         wave(700, [['draftee', 1150, 370], ['zombie', 1220, 430], ['draftee', 1260, 400]]),
@@ -2952,21 +3058,38 @@
     ctx.textAlign = 'left';
   }
 
+  function drawNeonTitle(text, cx, cy, size, mainColor) {
+    ctx.textAlign = 'center';
+    ctx.font = 'bold ' + size + 'px monospace';
+    ctx.fillStyle = '#0b0e18';
+    for (const [ox, oy] of [[3, 3], [-3, 3], [3, -3], [-3, -3]]) ctx.fillText(text, cx + ox, cy + oy);
+    ctx.fillStyle = mainColor;
+    ctx.fillText(text, cx, cy);
+    ctx.textAlign = 'left';
+  }
+
   function drawTitle() {
     const t = performance.now();
-    drawBackground('boss', Math.sin(t / 4000) * 100 + 100, 1400);
-    ctx.fillStyle = '#fff';
+    draw90sGrid(ctx, t);
+    drawNeonTitle('FOOTCLAN BRAWLER', W / 2, 90, 44, '#ffd23f');
     ctx.textAlign = 'center';
-    ctx.font = 'bold 46px monospace';
-    ctx.fillText('FOOTCLAN BRAWLER', W / 2, 140);
-    ctx.font = '15px monospace';
-    ctx.fillStyle = '#ffd23f';
-    ctx.fillText('a retro side-scrolling fighter starring the Fantasy Footballers', W / 2, 172);
+    ctx.font = 'italic bold 15px monospace';
+    ctx.fillStyle = '#3fd7ff';
+    ctx.fillText('a retro side-scrolling fighter starring the Fantasy Footballers', W / 2, 118);
 
-    drawSprite(ctx, W / 2 - 220, 385, { facing: 1, scale: 2.2, spriteKey: CHAR_DEFS.andy.spriteKey, tint: CHAR_DEFS.andy.tint, cap: true, variant: 'andy', pose: 'walk', t });
-    drawSprite(ctx, W / 2, 385, { facing: 1, scale: 2.2, spriteKey: CHAR_DEFS.jason.spriteKey, tint: CHAR_DEFS.jason.tint, glasses: true, variant: 'jason', pose: 'punch', t: t + 300, progress: (t % 800) / 800, comboStep: 0 });
-    drawSprite(ctx, W / 2 + 220, 385, { facing: -1, scale: 2.2, spriteKey: CHAR_DEFS.mike.spriteKey, tint: CHAR_DEFS.mike.tint, beard: true, guitar: true, variant: 'mike', pose: 'kick', t, progress: ((t + 400) % 800) / 800 });
+    const names = { andy: 'ANDY', jason: 'JASON', mike: 'MIKE' };
+    const colors = { andy: '#ffd23f', jason: '#7c5cff', mike: '#ff5fa2' };
+    ['andy', 'jason', 'mike'].forEach((k, i) => {
+      const cx = W / 2 + (i - 1) * 220;
+      drawPhotoPortrait(ctx, k, cx, 250, 150, colors[k]);
+      ctx.font = 'bold 16px monospace';
+      ctx.fillStyle = colors[k];
+      ctx.textAlign = 'center';
+      ctx.fillText(names[k], cx, 340);
+      ctx.textAlign = 'left';
+    });
 
+    ctx.textAlign = 'center';
     ctx.font = '12px monospace';
     ctx.fillStyle = '#8fd3ff';
     ctx.fillText('MOVE arrows/WASD   PUNCH J (x3 combo)   HEAVY K   SPECIAL L   JUMP space   DASH double-tap', W / 2, 440);
@@ -2978,53 +3101,41 @@
     if (Math.floor(t / 500) % 2 === 0) {
       ctx.font = 'bold 20px monospace';
       ctx.fillStyle = '#fff';
-      ctx.fillText('WELCOME IN. PRESS SPACE TO START', W / 2, 500);
+      ctx.fillText('WELCOME IN. PRESS SPACE TO START', W / 2, 508);
     }
     ctx.textAlign = 'left';
   }
 
   function drawSelect() {
-    ctx.fillStyle = '#0d0d18';
-    ctx.fillRect(0, 0, W, H);
+    const t = performance.now();
+    draw90sGrid(ctx, t);
     ctx.textAlign = 'center';
-    ctx.fillStyle = '#fff';
-    ctx.font = 'bold 30px monospace';
-    ctx.fillText('CHOOSE YOUR FOOTCLANNER', W / 2, 60);
+    drawNeonTitle('CHOOSE YOUR FOOTCLANNER', W / 2, 55, 28, '#3fd7ff');
     ctx.font = '13px monospace';
-    ctx.fillStyle = '#aaa';
-    ctx.fillText('← → to choose   SPACE to confirm', W / 2, 90);
+    ctx.fillStyle = '#fff';
+    ctx.fillText('← → to choose   SPACE to confirm', W / 2, 88);
 
+    const colors = { andy: '#ffd23f', jason: '#7c5cff', mike: '#ff5fa2' };
     const def = CHAR_DEFS[CHAR_ORDER[selIndex]];
     CHAR_ORDER.forEach((k, i) => {
       const cx = W / 2 + (i - selIndex) * 240;
       const active = i === selIndex;
-      ctx.globalAlpha = active ? 1 : 0.35;
-      if (active) {
-        px(ctx, cx - 90, 160, 180, 280, '#1b2038');
-        ctx.strokeStyle = '#ffd23f'; ctx.lineWidth = 3;
-        ctx.strokeRect(cx - 90, 160, 180, 280);
-      }
-      const tt = performance.now();
-      const cd = CHAR_DEFS[k];
-      drawSprite(ctx, cx, 400, {
-        facing: 1, scale: 2.4, spriteKey: cd.spriteKey, tint: cd.tint, glasses: cd.glasses,
-        cap: cd.cap, guitar: cd.guitar, beard: cd.beard, variant: k,
-        pose: active ? 'punch' : 'idle', t: tt, progress: active ? (tt % 800) / 800 : 0, comboStep: 0,
-      });
+      ctx.globalAlpha = active ? 1 : 0.45;
+      drawPhotoPortrait(ctx, k, cx, 260, active ? 180 : 140, colors[k]);
       ctx.globalAlpha = 1;
     });
 
     ctx.fillStyle = '#fff';
     ctx.font = 'bold 20px monospace';
-    ctx.fillText(def.name, W / 2, 462);
+    ctx.fillText(def.name, W / 2, 400);
     ctx.font = '13px monospace';
     ctx.fillStyle = '#ffd23f';
-    ctx.fillText(def.tag, W / 2, 484);
+    ctx.fillText(def.tag, W / 2, 422);
     ctx.font = '11px monospace';
     ctx.fillStyle = '#8fd3ff';
-    ctx.fillText(`SPD ${def.speed}   HP ${def.maxHealth}   COMBO ${def.combo.map(c => c.dmg).join('/')}   THROW ${def.throwDmg}`, W / 2, 500);
+    ctx.fillText(`SPD ${def.speed}   HP ${def.maxHealth}   COMBO ${def.combo.map(c => c.dmg).join('/')}   THROW ${def.throwDmg}`, W / 2, 442);
     ctx.fillStyle = '#ff8fc9';
-    ctx.fillText(`SPECIAL (L): ${def.special.name}     J+K: ${def.signature.name}`, W / 2, 516);
+    ctx.fillText(`SPECIAL (L): ${def.special.name}     J+K: ${def.signature.name}`, W / 2, 458);
     ctx.textAlign = 'left';
   }
 
@@ -3221,7 +3332,7 @@
   }
 
   requestAnimationFrame(frame);
-  loadSprites().then(() => { state = 'title'; });
+  Promise.all([loadSprites(), loadHostPhotos()]).then(() => { state = 'title'; });
 
   window.__debug = {
     goto: (ch, levelIdx_) => {
