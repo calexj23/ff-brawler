@@ -599,7 +599,7 @@
     }
     if (beard) {
       const top = -dispH;
-      const c = opts.beardColor || '#4a3220';
+      const c = opts.beardColor || '#8a5a30';
       px(ctx, -7 * scale, top + 13 * scale, 14 * scale, 9 * scale, c);   // jawline mass
       px(ctx, -5 * scale, top + 20 * scale, 10 * scale, 7 * scale, c);   // chin taper
       px(ctx, -3 * scale, top + 25 * scale, 6 * scale, 4 * scale, c);    // point
