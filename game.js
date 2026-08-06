@@ -1370,7 +1370,7 @@
           this.kickCd = this.def.kick.cd;
         } else if (tapped('KeyL') && this.specialCd <= 0 && this.meter >= this.def.special.cost) {
           const sp = this.def.special;
-          this.startAttack('special', { dmg: sp.dmg, range: sp.range, dur: 460, strike: 0.3, knock: 30, aoe: sp.aoe, projectile: sp.projectile, knockdown: true, heavy: true, riff: sp.voice === 'riff' });
+          this.startAttack('special', { dmg: sp.dmg, range: sp.range, dur: 460, strike: 0.3, knock: 30, aoe: sp.aoe, projectile: sp.projectile, knockdown: true, heavy: true, riff: sp.voice === 'riff', envelope: !!sp.envelope });
           this.meter -= sp.cost;
           this.specialCd = sp.cd;
           this.invuln = Math.max(this.invuln, 460); // special = brief i-frames, classic panic button
