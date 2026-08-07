@@ -19,6 +19,10 @@ Open `index.html` in any browser (or visit the hosted link once deployed).
 - Mute music: M
 - High scores: H, from the title screen
 
+**On mobile:** on-screen touch controls (d-pad + Jump/J/K/L buttons) appear
+automatically on touch devices. Tap the name box on the leaderboard screen to
+bring up your keyboard and type your name.
+
 **Dodging:** enemy fire uses a tight depth window — a quick tap of up or down
 (about 20px) slips the line. The boss shows a red aim line during his windup;
 step off it before he fires.

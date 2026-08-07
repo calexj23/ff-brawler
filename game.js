@@ -3638,20 +3638,4 @@
       if (e.key === 'Enter') { e.preventDefault(); submitNameEntry(); }
     });
   }
-
-  window.__debug = {
-    goto: (ch, levelIdx_) => {
-      selectedChar = ch; selIndex = CHAR_ORDER.indexOf(ch);
-      player = new Player(ch);
-      levelIdx = levelIdx_; lives = START_LIVES; score = 0; scoreShown = 0;
-      loadLevel(levelIdx_);
-      state = 'playing';
-      bannerTimer = 0;
-    },
-    info: () => ({ state, playerX: player && player.x, playerY: player && player.y, playerHealth: player && player.health }),
-    triggerGameOver: () => { score = 4242; enterNameEntry('gameover'); },
-    rawKeys: () => Array.from(keys),
-    rawJustPressed: () => Array.from(justPressed),
-    playerBusy: () => player && player.busy,
-  };
 })();
