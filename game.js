@@ -3383,32 +3383,4 @@
 
   requestAnimationFrame(frame);
   Promise.all([loadSprites(), loadHostPhotos()]).then(() => { state = 'title'; });
-
-  window.__debug = {
-    goto: (ch, levelIdx_) => {
-      selectedChar = ch; selIndex = CHAR_ORDER.indexOf(ch);
-      player = new Player(ch);
-      levelIdx = levelIdx_; lives = START_LIVES; score = 0; scoreShown = 0;
-      loadLevel(levelIdx_);
-      state = 'playing';
-      bannerTimer = 0;
-    },
-    clearEnemies: () => { enemies = enemies.filter(e => e === boss); },
-    spawnMini: (key, x, y) => { const e = new Enemy(key, x, y); e.engaged = true; enemies.push(e); return e; },
-    advance: (ms) => {
-      const n = Math.round(ms / 16);
-      for (let i = 0; i < n; i++) {
-        if (state === 'playing') update(16);
-        else if (state === 'twomerge') drawTwoMerge(16);
-      }
-      if (state === 'playing') render();
-    },
-    say: (target, text, ms) => { target.say(text, ms); },
-    setMeter: (v) => { player.meter = v; },
-    checkPlayer: () => ({ pose: player.pose, progress: player.progress, charKey: player.charKey, poseTimer: player.poseTimer, poseDuration: player.poseDuration }),
-    bossSay: (text, ms) => { if (boss) boss.say(text, ms); },
-    setBossHp: (v) => { if (boss) boss.hp = v; },
-    killTwins: () => { for (const t of bossTwins) { t.hp = 0; t.dying = true; t.alive = false; t.deathTimer = 0; } },
-    info: () => ({ state, hasBoss: !!boss, twinCount: bossTwins.length, enemyCount: enemies.length }),
-  };
 })();
