@@ -241,7 +241,7 @@
   let jkComboReady = false, jkComboAt = 0;
 
   const HANDLED = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space',
-    'KeyJ', 'KeyK', 'KeyL', 'KeyA', 'KeyS', 'KeyD', 'KeyW'];
+    'KeyJ', 'KeyK', 'KeyL', 'KeyA', 'KeyS', 'KeyD', 'KeyW', 'KeyH'];
 
   // Arrows are movement-only now; A/S/D are the new J/K/L (aliased straight
   // onto the same codes so every downstream check -- combos, cooldowns --
@@ -1606,12 +1606,12 @@
           });
           if (!spec.envelope) SFX.fire(); // mailbag already played its own sound on activation
         } else if (spec.lightning) {
-          // three bolts sweeping across the visible screen top-to-bottom --
+          // five bolts sweeping across the visible screen top-to-bottom --
           // a screen-space storm, not a thrown object, so it reads nothing
           // like Jason's horizontal envelope toss
-          for (let i = 0; i < 3; i++) {
-            const bx = camX + W * (0.28 + i * 0.22);
-            spawnLightning(bx, i * 170, spec.dmg);
+          for (let i = 0; i < 5; i++) {
+            const bx = camX + W * (0.28 + i * 0.11);
+            spawnLightning(bx, i * 110, spec.dmg);
           }
         } else {
           this.hitbox = {
@@ -3254,7 +3254,7 @@
     ctx.fillText('Press J+K together for a signature move — different for every host.', W / 2, 458);
     ctx.fillText('Stun an enemy, walk in and press J to GRAB — then K to throw them into the pack.', W / 2, 476);
     ctx.fillStyle = '#6a7290';
-    ctx.fillText('M toggles music', W / 2, 492);
+    ctx.fillText('M toggles music   H for high scores', W / 2, 492);
 
     if (Math.floor(t / 500) % 2 === 0) {
       ctx.font = 'bold 20px monospace';
@@ -3372,6 +3372,39 @@
       ctx.fillStyle = '#fff';
       ctx.font = 'bold 15px monospace';
       ctx.fillText('PRESS SPACE TO CONTINUE', W / 2, 508);
+    }
+    ctx.textAlign = 'left';
+  }
+
+  function drawLeaderboardScreen() {
+    const t = performance.now();
+    draw90sGrid(ctx, t);
+    ctx.textAlign = 'center';
+    drawNeonTitle('HIGH SCORES', W / 2, 60, 32, '#ffd23f');
+
+    if (!leaderboard.length) {
+      ctx.font = '16px monospace';
+      ctx.fillStyle = '#8fd3ff';
+      ctx.fillText('NO SCORES YET — GET OUT THERE', W / 2, 220);
+    } else {
+      ctx.font = '13px monospace';
+      leaderboard.slice(0, 10).forEach((e_, i) => {
+        const y = 130 + i * 30;
+        ctx.fillStyle = i === 0 ? '#ffd23f' : '#fff';
+        ctx.textAlign = 'right';
+        ctx.fillText(String(i + 1) + '.', W / 2 - 170, y);
+        ctx.textAlign = 'left';
+        ctx.fillText(e_.name, W / 2 - 150, y);
+        ctx.textAlign = 'right';
+        ctx.fillText(String(e_.score).padStart(7, '0'), W / 2 + 170, y);
+      });
+      ctx.textAlign = 'center';
+    }
+
+    if (Math.floor(t / 500) % 2 === 0) {
+      ctx.font = 'bold 16px monospace';
+      ctx.fillStyle = '#fff';
+      ctx.fillText('PRESS SPACE TO GO BACK', W / 2, 500);
     }
     ctx.textAlign = 'left';
   }
@@ -3506,6 +3539,11 @@
       Music.play('title');
       drawTitle();
       if (tapped('Space')) state = 'select';
+      else if (tapped('KeyH')) state = 'leaderboard';
+    } else if (state === 'leaderboard') {
+      Music.play('title');
+      drawLeaderboardScreen();
+      if (tapped('Space') || tapped('KeyH')) state = 'title';
     } else if (state === 'select') {
       Music.play('title');
       if (tapped('ArrowRight')) selIndex = (selIndex + 1) % CHAR_ORDER.length;
@@ -3550,4 +3588,12 @@
 
   requestAnimationFrame(frame);
   Promise.all([loadSprites(), loadHostPhotos()]).then(() => { state = 'title'; });
+
+  window.__debug = {
+    seedLeaderboard: () => {
+      leaderboard = [{ name: 'Andy Rules!', score: 12345 }, { name: 'JASON', score: 9876 }, { name: 'Mike The Hitman', score: 5000 }];
+    },
+    clearLeaderboard: () => { leaderboard = []; try { localStorage.removeItem('ffb_leaderboard'); } catch (e) {} },
+    goto: (s) => { state = s; },
+  };
 })();

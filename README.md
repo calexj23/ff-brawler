@@ -17,6 +17,7 @@ Open `index.html` in any browser (or visit the hosted link once deployed).
 - **Grab & throw:** knock an enemy down, and when `GRAB!` flashes over them walk in
   and press J to grab. Then J to knee them, or K to hurl them into the pack.
 - Mute music: M
+- High scores: H, from the title screen
 
 **Dodging:** enemy fire uses a tight depth window — a quick tap of up or down
 (about 20px) slips the line. The boss shows a red aim line during his windup;
