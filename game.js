@@ -356,9 +356,8 @@
     } else {
       px(ctx, cx - size / 2, cy - size / 2, size, size, '#222');
     }
-    // measured directly off a live render: the first pass (0.4) sat on the
-    // forehead, real eyes are noticeably lower in these headshots
-    const eyeY = cy - size / 2 + size * 0.53;
+    // bottom of the top third of the photo, per exact user spec
+    const eyeY = cy - size / 2 + size * (1 / 3);
     drawCoolGlasses(ctx, cx, eyeY, size / 198 * 1.05);
     ctx.restore();
   }
@@ -1259,6 +1258,12 @@
     'ZERO-RB WAS A MISTAKE',
     'I HAD HIM ON MY BENCH',
     'THAT TRADE WAS A FLEECE',
+    'NOW YOU\'RE A MAN',
+    'I\'M ABOUT TO BOOTY SCOOT',
+    'BUT...BUT...ANDY',
+    'DOMINATE YOUR LEAGUE',
+    'TITANIUM UNDIES!!!',
+    'IS IT A HORSE? IS IT A MAN?',
   ];
   const THIELEN_LINES = ['MY BACK!', 'BACK IN MY DAY', 'HEY YOUNG FELLA'];
   const RIVER_LINES = ["NOW I'M PISSED", 'WATCH ME FLOW', 'MAKE IT RAIN'];
@@ -1976,7 +1981,7 @@
           if (d < 70 && player.hitbox) {
             this.traitCd = 4200;
             this.knockX += (this.x < player.x ? -1 : 1) * 12;   // slip back
-            this.say('READ YOU', 900);
+            this.say('DOMINATE YOUR LEAGUE', 900);
             this.atkCd = 0;                                      // punish immediately
           }
           return false;
@@ -2022,7 +2027,7 @@
               color: '#ff4fa3', trail: true,
             });
           }
-          this.say('READ EM AND WEEP', 1400);
+          this.say('TITANIUM UNDIES!!!', 1400);
           SFX.fire();
           return true;
         }
