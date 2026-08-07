@@ -356,7 +356,9 @@
     } else {
       px(ctx, cx - size / 2, cy - size / 2, size, size, '#222');
     }
-    const eyeY = cy - size / 2 + size * 0.4;
+    // measured directly off a live render: the first pass (0.4) sat on the
+    // forehead, real eyes are noticeably lower in these headshots
+    const eyeY = cy - size / 2 + size * 0.53;
     drawCoolGlasses(ctx, cx, eyeY, size / 198 * 1.05);
     ctx.restore();
   }
@@ -3122,6 +3124,17 @@
       const active = i === selIndex;
       ctx.globalAlpha = active ? 1 : 0.45;
       drawPhotoPortrait(ctx, k, cx, 260, active ? 180 : 140, colors[k]);
+      if (active) {
+        // the actual in-game pixel rig, standing in front of the glamour
+        // shot -- "here's who you're really playing as"
+        const tt = performance.now();
+        const cd = CHAR_DEFS[k];
+        drawSprite(ctx, cx, 345, {
+          facing: 1, scale: 1.7, spriteKey: cd.spriteKey, tint: cd.tint, glasses: cd.glasses,
+          cap: cd.cap, guitar: cd.guitar, beard: cd.beard, variant: k,
+          pose: 'punch', t: tt, progress: (tt % 800) / 800, comboStep: 0,
+        });
+      }
       ctx.globalAlpha = 1;
     });
 
