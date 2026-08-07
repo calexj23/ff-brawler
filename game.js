@@ -3268,7 +3268,7 @@
     const t = performance.now();
     draw90sGrid(ctx, t);
     ctx.textAlign = 'center';
-    drawNeonTitle('CHOOSE YOUR FOOTCLANNER', W / 2, 55, 28, '#3fd7ff');
+    drawNeonTitle('CHOOSE YOUR FOOTBRAWLER', W / 2, 55, 28, '#3fd7ff');
     ctx.font = '13px monospace';
     ctx.fillStyle = '#fff';
     ctx.fillText('← → to choose   SPACE to confirm', W / 2, 88);
