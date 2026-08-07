@@ -3405,6 +3405,7 @@
     },
     say: (target, text, ms) => { target.say(text, ms); },
     setMeter: (v) => { player.meter = v; },
+    checkPlayer: () => ({ pose: player.pose, progress: player.progress, charKey: player.charKey, poseTimer: player.poseTimer, poseDuration: player.poseDuration }),
     bossSay: (text, ms) => { if (boss) boss.say(text, ms); },
     setBossHp: (v) => { if (boss) boss.hp = v; },
     killTwins: () => { for (const t of bossTwins) { t.hp = 0; t.dying = true; t.alive = false; t.deathTimer = 0; } },
