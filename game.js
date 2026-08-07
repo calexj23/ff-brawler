@@ -3550,14 +3550,4 @@
 
   requestAnimationFrame(frame);
   Promise.all([loadSprites(), loadHostPhotos()]).then(() => { state = 'title'; });
-
-  window.__debug = {
-    triggerGameOver: (s) => { score = s || 12345; enterNameEntry('gameover'); },
-    triggerWin: (s) => { score = s || 54321; enterNameEntry('win'); },
-    getLeaderboard: () => leaderboard,
-    clearLeaderboard: () => { leaderboard = []; try { localStorage.removeItem('ffb_leaderboard'); } catch (e) {} },
-    typeName: (str) => { nameEntry.text = str.slice(0, 40); },
-    submitName: () => submitNameEntry(),
-    info: () => ({ state, nameEntryActive: nameEntry.active, nameText: nameEntry.text }),
-  };
 })();

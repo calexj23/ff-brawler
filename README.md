@@ -63,7 +63,8 @@ Every enemy has a behaviour that acts out its joke, not just a label:
 
 Points per KO, scaled bonuses for longer combo chains, and an end-of-stage tally
 with a rank from **F** to **S** based on deaths, best combo and health remaining.
-High score persists in your browser.
+High score persists in your browser. Win or lose, the run ends with a name-entry
+screen (up to 40 characters) that saves your score to a local top-10 leaderboard.
 
 ## The three specials are three real bits
 
