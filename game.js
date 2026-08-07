@@ -105,14 +105,11 @@
         setTimeout(() => tone(740, 0.1, 'square', 0.14), 90);
         setTimeout(() => tone(980, 0.12, 'square', 0.15), 170);
       },
-      // Mike: an actual power-chord riff -- root + fifth, two quick chugs.
-      riff() {
-        [110, 165].forEach((f) => tone(f, 0.14, 'sawtooth', 0.16));
-        setTimeout(() => { [110, 165].forEach((f) => tone(f, 0.14, 'sawtooth', 0.16)); }, 150);
-        setTimeout(() => { [147, 220].forEach((f) => tone(f, 0.22, 'sawtooth', 0.18, 90)); }, 320);
-      },
       // every regular Mike hit lands as a muted guitar-body thwack, not a fist thud
       guitarHit() { noise(0.08, 0.16, 1100); tone(180, 0.08, 'sawtooth', 0.14, 90); },
+      // Mike's special, redone as a real storm -- a rumble to call it in, then a sharp crack per bolt
+      thunder() { noise(0.4, 0.16, 900); tone(220, 0.1, 'sawtooth', 0.1, 60); },
+      thunderCrack() { noise(0.12, 0.26, 3000); tone(1400, 0.05, 'square', 0.14, 200); },
     };
   })();
 
@@ -1169,7 +1166,7 @@
       kick: { dmg: 12, range: 54, dur: 300, strike: 0.28, cd: 340, knock: 20, knockdown: true, heavy: true },
       special: { name: 'Welcome In!', cost: 30, dmg: 26, range: 105, cd: 700, aoe: true, voice: 'welcomeIn' },
       // rapid-fire multi-hit jab burst -- fits "fastest hands" mechanically, not just numerically
-      signature: { name: 'Zinger Flurry', dur: 560, strike: 0.05, dmg: 5, range: 53, knock: 4,
+      signature: { name: 'Zinger Flurry', dur: 560, strike: 0.05, dmg: 5, range: 212, knock: 4,
         multiHit: true, tickMs: 82, hitboxLife: 470, cd: 1300 },
       throwDmg: 20,
       catch: 'WELCOME IN!',
@@ -1198,11 +1195,12 @@
       // the guitar is a real weapon: longer reach on every melee hit than fists give Andy/Jason
       combo: comboSet(10, 11, 21).map((h) => ({ ...h, range: h.range + 10 })),
       kick: { dmg: 16, range: 66, dur: 330, strike: 0.30, cd: 400, knock: 26, knockdown: true, heavy: true },
-      special: { name: 'The Riff', cost: 40, dmg: 38, range: 999, cd: 900, projectile: true, voice: 'riff' },
+      special: { name: 'Thunderstruck', cost: 40, dmg: 18, range: 999, cd: 900, lightning: true, voice: 'thunder' },
       // a real jump-stomp, like the final boss's ground-pound -- he leaps,
-      // the guitar comes down with him, AOE knockdown on landing
-      signature: { name: 'Drop the Bass', dur: 620, strike: 0.62, dmg: 34, range: 85, knock: 34,
-        knockdown: true, heavy: true, aoe: true, cd: 1500 },
+      // the guitar comes down with him, AOE knockdown on landing, with a
+      // much wider shockwave than a normal aoe hit
+      signature: { name: 'Drop the Bass', dur: 620, strike: 0.62, dmg: 34, range: 150, knock: 34,
+        knockdown: true, heavy: true, aoe: true, cd: 1500, depth: 140 },
       throwDmg: 28,
       catch: 'DROP THE RIFF',
       victory: 'Cue the outro riff. The Hitman clocks out.',
@@ -1281,14 +1279,14 @@
     'NEWS AND NOTES!',
   ];
   const THIELEN_LINES = ['MY BACK!', 'BACK IN MY DAY', 'HEY YOUNG FELLA', 'WHAT\'S THAT NOW', 'VIKEY NO LIKEY'];
-  const RIVER_LINES = ["NOW I'M PISSED", 'WATCH ME FLOW', 'MAKE IT RAIN', 'DRIP DRIP DRIP!', 'GET FLUSHED!', 'CRY ME A ME!'];
-  const GRONK_LINES = ['TIME TO GET GRONKED', 'GETTIN GRONKY WITH IT', 'GRONK LOVES YOU'];
-  const SHARK_LINES = ['MEGALA...', 'GET IN MAH BELLY', 'THESE TEETH WERE MADE FOR CHOMPIN'];
+  const RIVER_LINES = ["NOW I'M PISSED", 'WATCH ME FLOW', 'MAKE IT RAIN', 'DRIP DRIP DRIP!', 'GET FLUSHED!', 'CRY ME A ME!', 'SLIP N SLIDE'];
+  const GRONK_LINES = ['TIME TO GET GRONKED', 'GETTIN GRONKY WITH IT', 'GRONK LOVES YOU', 'COME TO GRONKY', 'GRONK FOR PRESIDENT', 'GRONK IS ALL, ALL IS GRONK'];
+  const SHARK_LINES = ['MEGALA...', 'GET IN MAH BELLY', 'THESE TEETH WERE MADE FOR CHOMPIN', 'OM NOM NOM', 'I WANT A SHAKE WITH THOSE FRIES'];
 
   // ============================================================
   // Effects
   // ============================================================
-  let projectiles = [], particles = [], popups = [], pickups = [];
+  let projectiles = [], particles = [], popups = [], pickups = [], lightningBolts = [];
   let hitStopTimer = 0, shakeTimer = 0, flashScreenTimer = 0;
 
   function spawnHit(x, y, color, n, power) {
@@ -1298,6 +1296,12 @@
   }
   function spawnImpactRing(x, y, color) {
     particles.push({ ring: true, x, y, r: 4, life: 14, color });
+  }
+  function spawnShockwave(x, y, color) {
+    particles.push({ ring: true, x, y, r: 10, life: 26, color, big: true });
+  }
+  function spawnLightning(x, delay, dmg) {
+    lightningBolts.push({ x, delay, dmg, struck: false, flash: 0 });
   }
   function spawnPopup(x, y, text, color, big) {
     popups.push({ x, y, text, life: 2000, maxLife: 2000, color: color || '#fff', big: !!big });
@@ -1360,9 +1364,9 @@
           particles.push({ x: this.x, y: this.y - 55, vx: rand(-2.5, 2.5), vy: rand(-4, -1), life: 22, color: '#eef0f5' });
         }
         SFX.mailbag();
-      } else if (voice === 'riff') {
-        spawnPopup(this.x, this.y - 130, 'DROP THE RIFF', '#ff8c8c', true);
-        SFX.riff();
+      } else if (voice === 'thunder') {
+        spawnPopup(this.x, this.y - 130, 'THUNDERSTRUCK', '#fff670', true);
+        SFX.thunder();
       } else {
         SFX.special();
       }
@@ -1522,7 +1526,7 @@
           this.kickCd = this.def.kick.cd;
         } else if (tapped('KeyL') && this.specialCd <= 0 && this.meter >= this.def.special.cost) {
           const sp = this.def.special;
-          this.startAttack('special', { dmg: sp.dmg, range: sp.range, dur: 460, strike: 0.3, knock: 30, aoe: sp.aoe, projectile: sp.projectile, knockdown: true, heavy: true, riff: sp.voice === 'riff', envelope: !!sp.envelope });
+          this.startAttack('special', { dmg: sp.dmg, range: sp.range, dur: 460, strike: 0.3, knock: 30, aoe: sp.aoe, projectile: sp.projectile, knockdown: true, heavy: true, envelope: !!sp.envelope, lightning: !!sp.lightning });
           this.meter -= sp.cost;
           this.specialCd = sp.cd;
           this.invuln = Math.max(this.invuln, 460); // special = brief i-frames, classic panic button
@@ -1592,15 +1596,30 @@
           projectiles.push({
             x: this.x + this.facing * 24, y: this.y, vx: this.facing * (spec.envelope ? 8 : 11),
             dmg: spec.dmg, friendly: true, life: 1800, color: '#ff8c3c', w: 18, h: 8, big: true,
-            riff: !!spec.riff, envelope: !!spec.envelope,
+            envelope: !!spec.envelope,
           });
-          if (!spec.riff && !spec.envelope) SFX.fire(); // riff/mailbag already played their own sound on activation
+          if (!spec.envelope) SFX.fire(); // mailbag already played its own sound on activation
+        } else if (spec.lightning) {
+          // three bolts sweeping across the visible screen top-to-bottom --
+          // a screen-space storm, not a thrown object, so it reads nothing
+          // like Jason's horizontal envelope toss
+          for (let i = 0; i < 3; i++) {
+            const bx = camX + W * (0.28 + i * 0.22);
+            spawnLightning(bx, i * 170, spec.dmg);
+          }
         } else {
           this.hitbox = {
             dmg: spec.dmg, range: spec.range, knock: spec.knock, knockdown: spec.knockdown,
             aoe: spec.aoe, heavy: spec.heavy, life: spec.hitboxLife || 130, hitSet: new Set(),
             multiHit: !!spec.multiHit, tickMs: spec.tickMs || 90, hitTimes: new Map(), age: 0,
+            depth: spec.depth,
           };
+          // Drop the Bass -- the guitar comes down with a real shockwave, not
+          // just a hit-flash, so the "slam" actually reads as an AOE.
+          if (spec.aoe && spec.heavy && this.charKey === 'mike') {
+            spawnShockwave(this.x, this.y - 4, '#ff8c3c');
+            shakeTimer = Math.max(shakeTimer, 220);
+          }
         }
       }
 
@@ -1625,9 +1644,9 @@
           if (hb.age - last < hb.tickMs) continue;
         } else if (hb.hitSet.has(en)) continue;
 
-        const depth = hb.aoe ? 90 : DEPTH_PLAYER_ATTACK;
+        const depth = hb.aoe ? (hb.depth || 90) : DEPTH_PLAYER_ATTACK;
         if (meleeHits(this.x, this.y, this.facing, en.x, en.y, hb.range, depth)
-          || (hb.aoe && Math.abs(en.x - this.x) < hb.range && Math.abs(en.y - this.y) < 90)) {
+          || (hb.aoe && Math.abs(en.x - this.x) < hb.range && Math.abs(en.y - this.y) < depth)) {
           if (hb.multiHit) hb.hitTimes.set(en, hb.age); else hb.hitSet.add(en);
           en.takeDamage(hb.dmg, this.x, hb.knock, hb.knockdown);
           this.meter = clamp(this.meter + (hb.heavy ? 12 : 5), 0, this.maxMeter);
@@ -2706,9 +2725,32 @@
     }
     projectiles = projectiles.filter(p => p.life > 0 && p.x > camX - 140 && p.x < camX + W + 140);
 
+    // ---- lightning bolts (Mike's special -- screen-space AOE strikes) --
+    for (const b of lightningBolts) {
+      if (!b.struck) {
+        b.delay -= dt;
+        if (b.delay <= 0) {
+          b.struck = true;
+          b.flash = 240;
+          SFX.thunderCrack();
+          shakeTimer = Math.max(shakeTimer, 130);
+          for (const en of enemies) {
+            if (!en.alive || en.dying || en.thrown) continue;
+            if (Math.abs(en.x - b.x) < 50) {
+              en.takeDamage(b.dmg, b.x, 20, true);
+              spawnHit(en.x, en.y - 55, '#fff670', 10, 1.4);
+            }
+          }
+        }
+      } else {
+        b.flash -= dt;
+      }
+    }
+    lightningBolts = lightningBolts.filter(b => !b.struck || b.flash > 0);
+
     // ---- particles / popups / pickups ----------------------------------
     for (const pt of particles) {
-      if (pt.ring) { pt.r += 3.2; pt.life--; continue; }
+      if (pt.ring) { pt.r += pt.big ? 5.2 : 3.2; pt.life--; continue; }
       pt.x += pt.vx; pt.y += pt.vy; pt.vy += 0.2; pt.life--;
     }
     particles = particles.filter(p => p.life > 0);
@@ -3006,15 +3048,7 @@
       // rain drops fall through real screen-space Y, not the fixed
       // chest-height offset everything else uses
       const px_ = p.x - camX, py_ = p.rainDrop ? p.y : p.y - 52;
-      if (p.riff) {
-        // a real guitar riff, drawn as a soundwave instead of a block
-        const dir = p.vx >= 0 ? 1 : -1;
-        for (let i = 0; i < 3; i++) {
-          const off = i * 9 * dir;
-          const wob = Math.sin(p.x * 0.15 + i * 2) * 6;
-          px(ctx, px_ - off - 3, py_ + wob - 2, 6, 4, i === 0 ? '#fff' : '#ff5a47');
-        }
-      } else if (p.envelope) {
+      if (p.envelope) {
         // a giant tumbling envelope -- Jason's actual literal "Mailbag"
         ctx.save();
         ctx.translate(px_, py_);
@@ -3036,10 +3070,41 @@
       }
     }
 
+    for (const b of lightningBolts) {
+      const bx = b.x - camX;
+      if (!b.struck) {
+        // telegraph: a thin flickering line warning where the bolt lands
+        ctx.globalAlpha = 0.35 + Math.sin(performance.now() * 0.05) * 0.2;
+        ctx.strokeStyle = '#fff670';
+        ctx.setLineDash([6, 5]);
+        ctx.beginPath(); ctx.moveTo(bx, 0); ctx.lineTo(bx, GROUND_Y + 10); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.globalAlpha = 1;
+      } else if (b.flash > 0) {
+        ctx.globalAlpha = clamp(b.flash / 240, 0, 1);
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 4;
+        ctx.beginPath();
+        let cy = 0;
+        ctx.moveTo(bx, cy);
+        while (cy < GROUND_Y + 10) {
+          const nx = bx + rand(-14, 14), ny = cy + rand(24, 40);
+          ctx.lineTo(nx, ny);
+          cy = ny;
+        }
+        ctx.stroke();
+        ctx.strokeStyle = '#fff670'; ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.globalAlpha = clamp(b.flash / 240, 0, 1) * 0.4;
+        ctx.fillStyle = '#fff670';
+        ctx.beginPath(); ctx.ellipse(bx, GROUND_Y + 8, 46, 14, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+    }
+
     for (const pt of particles) {
-      ctx.globalAlpha = Math.max(0, pt.life / (pt.ring ? 14 : 20));
+      ctx.globalAlpha = Math.max(0, pt.life / (pt.ring ? (pt.big ? 26 : 14) : 20));
       if (pt.ring) {
-        ctx.strokeStyle = pt.color; ctx.lineWidth = 2;
+        ctx.strokeStyle = pt.color; ctx.lineWidth = pt.big ? 5 : 2;
         ctx.beginPath(); ctx.arc(pt.x - camX, pt.y, pt.r, 0, Math.PI * 2); ctx.stroke();
       } else {
         px(ctx, pt.x - camX, pt.y, 4, 4, pt.color);

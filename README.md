@@ -74,7 +74,7 @@ the show, not an invented gimmick:
 | --- | --- | --- |
 | Andy "Welcome In" Holloway | **Welcome In!** | His real intro catchphrase. Landing it hypes the crowd and gives Andy a real speed buff for a few seconds. |
 | Jason "Mailbag" Moore | **#FootClan Mailbag** | The show's actual recurring listener-question segment. Pulls a real-style mailbag question on screen before the hit lands. |
-| Mike "The Fantasy Hitman" Wright | **The Riff** | Mike genuinely releases the show's guitar-driven intro themes (see *TFFB Intros* on Bandcamp). His special is a literal guitar riff turned into a soundwave projectile, with its own power-chord sound effect. |
+| Mike "The Fantasy Hitman" Wright | **Thunderstruck** | The Hitman's power-chord energy, turned into three lightning bolts that sweep top-to-bottom across the screen instead of a thrown object. |
 
 ## Music
 
