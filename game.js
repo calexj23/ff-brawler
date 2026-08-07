@@ -250,6 +250,13 @@
 
   window.addEventListener('keydown', (e) => {
     SFX.ensure();
+    if (nameEntry.active) {
+      if (e.key === 'Enter') { submitNameEntry(); }
+      else if (e.key === 'Backspace') { nameEntry.text = nameEntry.text.slice(0, -1); }
+      else if (e.key.length === 1 && nameEntry.text.length < 40) { nameEntry.text += e.key; }
+      e.preventDefault();
+      return;
+    }
     const code = KEY_ALIAS[e.code] || e.code;
     if (!keys.has(code)) {
       justPressed.add(code);
@@ -2334,6 +2341,28 @@
   let highScore = 0;
   try { highScore = parseInt(localStorage.getItem('ffb_highscore') || '0', 10) || 0; } catch (e) { highScore = 0; }
 
+  // ---- leaderboard: name entry at the end of a run, win or lose ----------
+  let leaderboard = [];
+  try { leaderboard = JSON.parse(localStorage.getItem('ffb_leaderboard') || '[]'); } catch (e) { leaderboard = []; }
+  const nameEntry = { active: false, text: '', afterState: 'gameover' };
+
+  function enterNameEntry(afterState) {
+    nameEntry.active = true;
+    nameEntry.text = '';
+    nameEntry.afterState = afterState;
+    state = 'nameentry';
+  }
+  function submitNameEntry() {
+    const name = nameEntry.text.trim().slice(0, 40) || 'ANONYMOUS';
+    leaderboard.push({ name, score });
+    leaderboard.sort((a, b) => b.score - a.score);
+    leaderboard = leaderboard.slice(0, 10);
+    try { localStorage.setItem('ffb_leaderboard', JSON.stringify(leaderboard)); } catch (e) { /* private mode */ }
+    nameEntry.active = false;
+    state = nameEntry.afterState;
+    if (state === 'win') winTimer = 0;
+  }
+
   function addScore(n, x, y, label) {
     score += n;
     if (x != null) spawnDmgPopup(x, y, (label ? label + ' ' : '') + '+' + n, '#ffd23f');
@@ -2639,7 +2668,7 @@
       mergeDone = true;
       addScore(5000, W / 2, H / 2 - 200, 'BOSS');
       saveHighScore();
-      state = 'win'; winTimer = 0;
+      enterNameEntry('win');
       SFX.levelUp();
     }
   }
@@ -2779,7 +2808,7 @@
         player.knockX = 0;
         player.releaseGrab();
         bannerText = 'GET BACK IN THERE'; bannerSub = ''; bannerTimer = 1400;
-      } else { saveHighScore(); state = 'gameover'; }
+      } else { saveHighScore(); enterNameEntry('gameover'); }
     } else if (state === 'playing' && !boss && allWavesCleared() && bannerTimer <= 0) {
       // guarded on state still being 'playing' -- splitBoss()/startTwoMerge()
       // can change state earlier in this same tick (boss null, enemies empty
@@ -2792,7 +2821,7 @@
   function onBossDefeated() {
     addScore(5000, boss.x, boss.y - 200, 'BOSS');
     saveHighScore();
-    state = 'win'; winTimer = 0;
+    enterNameEntry('win');
     SFX.levelUp();
   }
 
@@ -3347,6 +3376,55 @@
     ctx.textAlign = 'left';
   }
 
+  function drawNameEntry() {
+    const won = nameEntry.afterState === 'win';
+    ctx.fillStyle = won ? '#0d1a10' : 'rgba(20,0,0,0.92)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.textAlign = 'center';
+    ctx.fillStyle = won ? '#3ddc6b' : '#ff4d4d';
+    ctx.font = 'bold 28px monospace';
+    ctx.fillText(won ? 'YOU ARE A TRUE BALLER' : 'YOU GOT BENCHED', W / 2, 110);
+    ctx.fillStyle = '#ffd23f';
+    ctx.font = 'bold 20px monospace';
+    ctx.fillText('FINAL SCORE  ' + String(score).padStart(7, '0'), W / 2, 155);
+    ctx.fillStyle = '#8fd3ff';
+    ctx.font = '14px monospace';
+    ctx.fillText('ENTER YOUR NAME FOR THE LEADERBOARD', W / 2, 205);
+
+    const boxW = 520, boxH = 40, boxX = W / 2 - boxW / 2, boxY = 225;
+    ctx.strokeStyle = '#ffd23f';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(boxX, boxY, boxW, boxH);
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 18px monospace';
+    const cursor = Math.floor(performance.now() / 400) % 2 === 0 ? '_' : ' ';
+    ctx.fillText(nameEntry.text + cursor, boxX + 12, boxY + 26);
+    ctx.textAlign = 'center';
+
+    ctx.font = '11px monospace';
+    ctx.fillStyle = '#8a92ad';
+    ctx.fillText(nameEntry.text.length + ' / 40', W / 2, boxY + boxH + 20);
+
+    if (Math.floor(performance.now() / 500) % 2 === 0) {
+      ctx.font = 'bold 14px monospace';
+      ctx.fillStyle = '#3ddc6b';
+      ctx.fillText('PRESS ENTER TO SAVE', W / 2, boxY + boxH + 50);
+    }
+
+    if (leaderboard.length) {
+      ctx.font = 'bold 13px monospace';
+      ctx.fillStyle = '#ffd23f';
+      ctx.fillText('TOP SCORES', W / 2, boxY + boxH + 90);
+      ctx.font = '12px monospace';
+      leaderboard.slice(0, 5).forEach((e_, i) => {
+        ctx.fillStyle = '#ccc';
+        ctx.fillText((i + 1) + '. ' + e_.name + '  ' + String(e_.score).padStart(7, '0'), W / 2, boxY + boxH + 112 + i * 16);
+      });
+    }
+    ctx.textAlign = 'left';
+  }
+
   function drawGameOver() {
     ctx.fillStyle = 'rgba(20,0,0,0.92)';
     ctx.fillRect(0, 0, W, H);
@@ -3450,6 +3528,9 @@
           tally.t = 2000;
         } else { saveHighScore(); nextLevel(); }
       }
+    } else if (state === 'nameentry') {
+      Music.stop();
+      drawNameEntry();
     } else if (state === 'gameover') {
       Music.stop();
       drawGameOver();
@@ -3470,4 +3551,13 @@
   requestAnimationFrame(frame);
   Promise.all([loadSprites(), loadHostPhotos()]).then(() => { state = 'title'; });
 
+  window.__debug = {
+    triggerGameOver: (s) => { score = s || 12345; enterNameEntry('gameover'); },
+    triggerWin: (s) => { score = s || 54321; enterNameEntry('win'); },
+    getLeaderboard: () => leaderboard,
+    clearLeaderboard: () => { leaderboard = []; try { localStorage.removeItem('ffb_leaderboard'); } catch (e) {} },
+    typeName: (str) => { nameEntry.text = str.slice(0, 40); },
+    submitName: () => submitNameEntry(),
+    info: () => ({ state, nameEntryActive: nameEntry.active, nameText: nameEntry.text }),
+  };
 })();
