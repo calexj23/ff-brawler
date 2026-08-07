@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>FootClan Brawler</title>
-<link rel="stylesheet" href="style.css?v=2">
+<link rel="stylesheet" href="style.css?v=3">
 </head>
 <body>
   <div id="rotate-prompt">
@@ -18,11 +18,16 @@
       <input id="tc-name-input" type="text" maxlength="40" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
     </div>
     <div id="touch-controls">
-      <div id="tc-dpad">
-        <button type="button" class="tc-btn tc-up" data-key="ArrowUp">▲</button>
-        <button type="button" class="tc-btn tc-left" data-key="ArrowLeft">◀</button>
-        <button type="button" class="tc-btn tc-right" data-key="ArrowRight">▶</button>
-        <button type="button" class="tc-btn tc-down" data-key="ArrowDown">▼</button>
+      <!-- One big touch region, not four small buttons -- direction is
+           computed from where the thumb is relative to the pad's center,
+           so it rolls smoothly between directions instead of requiring
+           precise re-taps on tiny adjacent targets. -->
+      <div id="tc-dpad" class="tc-pad">
+        <div class="tc-pad-ring"></div>
+        <div class="tc-pad-arrow tc-arrow-up">▲</div>
+        <div class="tc-pad-arrow tc-arrow-down">▼</div>
+        <div class="tc-pad-arrow tc-arrow-left">◀</div>
+        <div class="tc-pad-arrow tc-arrow-right">▶</div>
       </div>
       <div id="tc-mini">
         <button type="button" class="tc-btn tc-mini-btn" data-key="KeyM">M</button>
@@ -30,12 +35,17 @@
       </div>
       <div id="tc-actions">
         <button type="button" class="tc-btn tc-jump" data-key="Space"><span>JUMP</span><span class="tc-sub">/ OK</span></button>
+        <!-- Dedicated signature-move button -- instead of asking a thumb to
+             land two small buttons at once (unreliable on touchscreens),
+             this fires the same J+K-within-160ms combo the desktop path
+             already detects, just triggered from one press. -->
+        <button type="button" id="tc-sig" class="tc-btn tc-sig"><span>SIG</span></button>
         <button type="button" class="tc-btn tc-punch" data-key="KeyJ">J</button>
         <button type="button" class="tc-btn tc-heavy" data-key="KeyK">K</button>
         <button type="button" class="tc-btn tc-special" data-key="KeyL">L</button>
       </div>
     </div>
   </div>
-  <script src="game.js?v=45"></script>
+  <script src="game.js?v=46"></script>
 </body>
 </html>

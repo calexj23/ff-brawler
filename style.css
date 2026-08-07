@@ -121,20 +121,58 @@ canvas {
 }
 .tc-btn:active { background: rgba(255, 255, 255, 0.42); }
 
-#tc-dpad .tc-btn { width: 38%; height: 38%; }
-.tc-up    { left: 31%; top: 0; }
-.tc-left  { left: 0;   top: 31%; }
-.tc-right { left: 62%; top: 31%; }
-.tc-down  { left: 31%; top: 62%; }
+/* ---- movement pad: one big touch region, direction computed in JS from
+   where the thumb lands relative to center -- not four small buttons. ---- */
+.tc-pad {
+  position: relative;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.tc-pad-ring {
+  position: absolute;
+  inset: 32%;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.22);
+  pointer-events: none;
+}
+.tc-pad.tc-pad-active .tc-pad-ring {
+  border-color: rgba(255, 210, 63, 0.7);
+  background: rgba(255, 210, 63, 0.08);
+}
+.tc-pad-arrow {
+  position: absolute;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: clamp(14px, 3.4vh, 22px);
+  pointer-events: none;
+}
+.tc-arrow-up    { top: 5%; left: 50%; transform: translateX(-50%); }
+.tc-arrow-down  { bottom: 5%; left: 50%; transform: translateX(-50%); }
+.tc-arrow-left  { left: 5%; top: 50%; transform: translateY(-50%); }
+.tc-arrow-right { right: 5%; top: 50%; transform: translateY(-50%); }
 
-/* 2x2 grid, not a diamond -- J and K sit side by side so both thumbs can
-   land on them at once for the J+K signature-move combo. */
-#tc-actions .tc-btn { width: 47%; height: 47%; border-radius: 22%; }
-.tc-punch   { left: 0;   top: 0; }
-.tc-heavy   { left: 53%; top: 0; }
-.tc-special { left: 0;   top: 53%; }
-.tc-jump    { left: 53%; top: 53%; flex-direction: column; line-height: 1.1; font-size: clamp(11px, 2.4vh, 16px); }
+/* ---- action cluster: frequent J/K/L on the bottom row, in the thumb's
+   natural resting arc; JUMP and the dedicated SIGNATURE button above. ---- */
+.tc-jump, .tc-sig { position: absolute; top: 0; height: 46%; width: 46%; }
+.tc-jump { left: 0; flex-direction: column; line-height: 1.1; font-size: clamp(11px, 2.6vh, 16px); }
 .tc-jump .tc-sub { font-size: 0.75em; opacity: 0.8; }
+.tc-sig  {
+  left: 54%;
+  flex-direction: column;
+  border-color: rgba(255, 210, 63, 0.6);
+  background: rgba(255, 210, 63, 0.16);
+  color: #ffd23f;
+}
+.tc-sig:active { background: rgba(255, 210, 63, 0.36); }
+
+.tc-punch, .tc-heavy, .tc-special { position: absolute; top: 53%; height: 47%; width: 30%; }
+.tc-punch   { left: 0; }
+.tc-heavy   { left: 35%; }
+.tc-special { left: 70%; }
 
 #tc-mini { display: flex; }
 #tc-mini .tc-btn {
@@ -146,7 +184,7 @@ canvas {
 }
 
 @media (hover: none) and (pointer: coarse) {
-  :root { --tc-bar-h: clamp(130px, 30vh, 200px); }
+  :root { --tc-bar-h: clamp(140px, 32vh, 210px); }
 
   body {
     display: flex;
@@ -188,10 +226,16 @@ canvas {
     border-top: 2px solid #3a3a55;
   }
 
-  #tc-dpad, #tc-actions {
+  #tc-dpad {
     position: relative;
     height: 96%;
     aspect-ratio: 1;
+    flex-shrink: 0;
+  }
+  #tc-actions {
+    position: relative;
+    height: 96%;
+    aspect-ratio: 1.45;
     flex-shrink: 0;
   }
   #tc-mini {

@@ -3605,8 +3605,8 @@
   requestAnimationFrame(frame);
   Promise.all([loadSprites(), loadHostPhotos()]).then(() => { state = 'title'; });
 
-  // ---- touch controls: on-screen d-pad + action buttons, bound onto
-  // the same virtual-key handlers the real keyboard uses ------------------
+  // ---- touch controls: action buttons, bound onto the same virtual-key
+  // handlers the real keyboard uses ----------------------------------------
   document.querySelectorAll('.tc-btn[data-key]').forEach((el) => {
     const code = el.dataset.key;
     const down = (e) => {
@@ -3626,6 +3626,79 @@
     el.addEventListener('mouseup', up);
     el.addEventListener('mouseleave', up);
   });
+
+  // ---- movement pad: a single touch region rather than four small
+  // buttons -- direction is computed from where the touch sits relative
+  // to the pad's center, so a thumb rolls smoothly between directions
+  // (including diagonals, for depth-lane + horizontal at once) instead of
+  // needing precise re-taps on tiny adjacent targets. ----------------------
+  const dpadEl = document.getElementById('tc-dpad');
+  if (dpadEl) {
+    const DEADZONE = 0.3; // fraction of the pad's half-width before a direction engages
+    const active = { up: false, down: false, left: false, right: false };
+    const codeFor = { up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight' };
+
+    function setDir(dir, on) {
+      if (active[dir] === on) return;
+      active[dir] = on;
+      if (on) handleVirtualKeyDown(codeFor[dir]);
+      else handleVirtualKeyUp(codeFor[dir]);
+    }
+    function updateFromPoint(clientX, clientY) {
+      const rect = dpadEl.getBoundingClientRect();
+      const dx = (clientX - (rect.left + rect.width / 2)) / (rect.width / 2);
+      const dy = (clientY - (rect.top + rect.height / 2)) / (rect.height / 2);
+      setDir('left', dx < -DEADZONE);
+      setDir('right', dx > DEADZONE);
+      setDir('up', dy < -DEADZONE);
+      setDir('down', dy > DEADZONE);
+      dpadEl.classList.toggle('tc-pad-active', active.up || active.down || active.left || active.right);
+    }
+    function clearAll() {
+      setDir('left', false); setDir('right', false); setDir('up', false); setDir('down', false);
+      dpadEl.classList.remove('tc-pad-active');
+    }
+
+    dpadEl.addEventListener('touchstart', (e) => {
+      e.preventDefault(); SFX.ensure();
+      updateFromPoint(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+    }, { passive: false });
+    dpadEl.addEventListener('touchmove', (e) => {
+      e.preventDefault();
+      updateFromPoint(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+    }, { passive: false });
+    dpadEl.addEventListener('touchend', (e) => { e.preventDefault(); clearAll(); }, { passive: false });
+    dpadEl.addEventListener('touchcancel', clearAll);
+    // mouse fallback, for testing on a touch-emulated desktop browser
+    let mouseDown = false;
+    dpadEl.addEventListener('mousedown', (e) => { mouseDown = true; SFX.ensure(); updateFromPoint(e.clientX, e.clientY); });
+    window.addEventListener('mousemove', (e) => { if (mouseDown) updateFromPoint(e.clientX, e.clientY); });
+    window.addEventListener('mouseup', () => { if (mouseDown) { mouseDown = false; clearAll(); } });
+  }
+
+  // ---- signature-move button: fires the same J-then-K-within-160ms combo
+  // the desktop path already detects, rather than asking a thumb to land
+  // two separate small buttons at the same instant (unreliable on touch). --
+  const sigEl = document.getElementById('tc-sig');
+  if (sigEl) {
+    const down = (e) => {
+      e.preventDefault();
+      SFX.ensure();
+      handleVirtualKeyDown('KeyJ');
+      handleVirtualKeyDown('KeyK');
+    };
+    const up = (e) => {
+      e.preventDefault();
+      handleVirtualKeyUp('KeyJ');
+      handleVirtualKeyUp('KeyK');
+    };
+    sigEl.addEventListener('touchstart', down, { passive: false });
+    sigEl.addEventListener('touchend', up, { passive: false });
+    sigEl.addEventListener('touchcancel', up, { passive: false });
+    sigEl.addEventListener('mousedown', down);
+    sigEl.addEventListener('mouseup', up);
+    sigEl.addEventListener('mouseleave', up);
+  }
 
   // ---- mobile name entry: a real (invisible) input positioned over the
   // drawn box so tapping it summons the OS keyboard, syncing its value
