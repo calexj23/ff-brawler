@@ -241,16 +241,15 @@
   let jkComboReady = false, jkComboAt = 0;
 
   const HANDLED = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space',
-    'KeyJ', 'KeyK', 'KeyL', 'KeyA', 'KeyS', 'KeyD'];
+    'KeyJ', 'KeyK', 'KeyL', 'KeyA', 'KeyS', 'KeyD', 'KeyW'];
 
   // Arrows are movement-only now; A/S/D are the new J/K/L (aliased straight
   // onto the same codes so every downstream check -- combos, cooldowns --
-  // works unchanged). W has no function.
-  const KEY_ALIAS = { KeyA: 'KeyJ', KeyS: 'KeyK', KeyD: 'KeyL' };
+  // works unchanged). W is aliased to Space (jump).
+  const KEY_ALIAS = { KeyA: 'KeyJ', KeyS: 'KeyK', KeyD: 'KeyL', KeyW: 'Space' };
 
   window.addEventListener('keydown', (e) => {
     SFX.ensure();
-    if (e.code === 'KeyW') return; // no function, by design
     const code = KEY_ALIAS[e.code] || e.code;
     if (!keys.has(code)) {
       justPressed.add(code);
@@ -275,7 +274,6 @@
     if (HANDLED.includes(e.code)) e.preventDefault();
   });
   window.addEventListener('keyup', (e) => {
-    if (e.code === 'KeyW') return;
     keys.delete(KEY_ALIAS[e.code] || e.code);
   });
   function pressed(code) { return keys.has(code); }
@@ -3223,7 +3221,7 @@
     ctx.textAlign = 'center';
     ctx.font = '12px monospace';
     ctx.fillStyle = '#8fd3ff';
-    ctx.fillText('MOVE arrows   PUNCH J/A (x3 combo)   HEAVY K/S   SPECIAL L/D   JUMP space   DASH double-tap arrows', W / 2, 440);
+    ctx.fillText('MOVE arrows   PUNCH J/A (x3 combo)   HEAVY K/S   SPECIAL L/D   JUMP space/W   DASH double-tap arrows', W / 2, 440);
     ctx.fillText('Press J+K together for a signature move — different for every host.', W / 2, 458);
     ctx.fillText('Stun an enemy, walk in and press J to GRAB — then K to throw them into the pack.', W / 2, 476);
     ctx.fillStyle = '#6a7290';

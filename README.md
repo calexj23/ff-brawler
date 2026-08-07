@@ -12,7 +12,7 @@ Open `index.html` in any browser (or visit the hosted link once deployed).
 - Heavy: K or S — slower, knocks down on its own
 - **J+K (or A+S) together: signature move** — a different, mechanically distinct attack for every host (see below)
 - Special: L or D — costs meter, brief invincibility (panic button)
-- Jump: Space — press J/A in the air for a dive kick
+- Jump: Space or W — press J/A in the air for a dive kick
 - Dash: double-tap left/right — press J/A while dashing for a shoulder charge
 - **Grab & throw:** knock an enemy down, and when `GRAB!` flashes over them walk in
   and press J to grab. Then J to knee them, or K to hurl them into the pack.
