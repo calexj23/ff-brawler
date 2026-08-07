@@ -3588,12 +3588,4 @@
 
   requestAnimationFrame(frame);
   Promise.all([loadSprites(), loadHostPhotos()]).then(() => { state = 'title'; });
-
-  window.__debug = {
-    seedLeaderboard: () => {
-      leaderboard = [{ name: 'Andy Rules!', score: 12345 }, { name: 'JASON', score: 9876 }, { name: 'Mike The Hitman', score: 5000 }];
-    },
-    clearLeaderboard: () => { leaderboard = []; try { localStorage.removeItem('ffb_leaderboard'); } catch (e) {} },
-    goto: (s) => { state = s; },
-  };
 })();
