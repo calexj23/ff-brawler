@@ -3650,5 +3650,8 @@
     },
     info: () => ({ state, playerX: player && player.x, playerY: player && player.y, playerHealth: player && player.health }),
     triggerGameOver: () => { score = 4242; enterNameEntry('gameover'); },
+    rawKeys: () => Array.from(keys),
+    rawJustPressed: () => Array.from(justPressed),
+    playerBusy: () => player && player.busy,
   };
 })();
