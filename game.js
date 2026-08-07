@@ -796,6 +796,7 @@
     ctx.save();
     ctx.translate(x, y);
     if (e.facing < 0) ctx.scale(-1, 1);
+    if (e.spin) ctx.rotate(e.spin); // the tailswipe attack
 
     ctx.globalAlpha = 0.35;
     px(ctx, -46 * s, 4, 92 * s, 12, '#000');
@@ -1157,7 +1158,7 @@
       kick: { dmg: 12, range: 54, dur: 300, strike: 0.28, cd: 340, knock: 20, knockdown: true, heavy: true },
       special: { name: 'Welcome In!', cost: 30, dmg: 26, range: 105, cd: 700, aoe: true, voice: 'welcomeIn' },
       // rapid-fire multi-hit jab burst -- fits "fastest hands" mechanically, not just numerically
-      signature: { name: 'Zinger Flurry', dur: 560, strike: 0.05, dmg: 5, range: 50, knock: 4,
+      signature: { name: 'Zinger Flurry', dur: 560, strike: 0.05, dmg: 5, range: 53, knock: 4,
         multiHit: true, tickMs: 82, hitboxLife: 470, cd: 1300 },
       throwDmg: 20,
       catch: 'WELCOME IN!',
@@ -1180,16 +1181,17 @@
     },
     mike: {
       name: 'Mike "The Fantasy Hitman" Wright',
-      tag: 'Heaviest hits, longest reach. J+K drops a Power Chord Smash.',
+      tag: 'Heaviest hits, longest reach. J+K is a jump-stomp called Drop the Bass.',
       spriteKey: 'ranger', tint: 'hue-rotate(190deg) saturate(0.55) brightness(0.7)', glasses: false, beard: true, guitar: true, accent: '#ff3b3b',
       speed: 3.0, jumpPow: 12.5, maxHealth: 135,
       // the guitar is a real weapon: longer reach on every melee hit than fists give Andy/Jason
       combo: comboSet(10, 11, 21).map((h) => ({ ...h, range: h.range + 10 })),
       kick: { dmg: 16, range: 66, dur: 330, strike: 0.30, cd: 400, knock: 26, knockdown: true, heavy: true },
       special: { name: 'The Riff', cost: 40, dmg: 38, range: 999, cd: 900, projectile: true, voice: 'riff' },
-      // one huge two-handed overhead smash -- biggest single number in the game
-      signature: { name: 'Power Chord Smash', dur: 480, strike: 0.40, dmg: 34, range: 76, knock: 32,
-        knockdown: true, heavy: true, cd: 1500 },
+      // a real jump-stomp, like the final boss's ground-pound -- he leaps,
+      // the guitar comes down with him, AOE knockdown on landing
+      signature: { name: 'Drop the Bass', dur: 620, strike: 0.62, dmg: 34, range: 85, knock: 34,
+        knockdown: true, heavy: true, aoe: true, cd: 1500 },
       throwDmg: 28,
       catch: 'DROP THE RIFF',
       victory: 'Cue the outro riff. The Hitman clocks out.',
@@ -1236,17 +1238,17 @@
   // football figures -- reusing the human sprite rigs (recolored + scaled,
   // same period-authentic trick as the rest of the roster) rather than new art.
   const MINIBOSS_DEFS = {
-    lateround: { name: 'Old Man Thielen', hp: 95, speed: 1.2, dmg: 10, atkRange: 52, atkCd: 1300, size: 1.55, miniboss: true,
+    lateround: { name: 'Old Man Thielen', hp: 190, speed: 1.2, dmg: 10, atkRange: 52, atkCd: 650, size: 1.55, miniboss: true,
       spriteKey: 'renegade', tint: 'hue-rotate(255deg) saturate(1.3) brightness(0.8)', vikingHat: true,
       beard: true, beardColor: '#f0ead8', beardShade: '#c2b896', beardLong: true,
       trait: 'oldman', points: 1000 },
-    alphavulture: { name: 'P. River', hp: 105, speed: 1.5, dmg: 8, atkRange: 240, atkCd: 1500, size: 1.45, ranged: true, miniboss: true,
+    alphavulture: { name: 'P. River', hp: 210, speed: 1.5, dmg: 8, atkRange: 240, atkCd: 750, size: 1.45, ranged: true, miniboss: true,
       spriteKey: 'ranger', tint: 'hue-rotate(50deg) saturate(1.3) brightness(1.05)', projColor: '#f4e04d', bolt: true,
       trait: 'priver', points: 1200 },
-    cardshark: { name: 'GRONK', hp: 155, speed: 1.7, dmg: 12, atkRange: 85, atkCd: 600, size: 3.9, miniboss: true,
+    cardshark: { name: 'GRONK', hp: 310, speed: 1.7, dmg: 12, atkRange: 85, atkCd: 600, size: 3.9, miniboss: true,
       spriteKey: 'renegade', tint: 'hue-rotate(355deg) saturate(1.4) brightness(0.85)',
       trait: 'gronk', points: 1500 },
-    formerchamp: { name: 'Megalodon', hp: 165, speed: 2.0, dmg: 11, atkRange: 50, atkCd: 425, size: 2.3, miniboss: true,
+    formerchamp: { name: 'Megalodon', hp: 330, speed: 2.0, dmg: 11, atkRange: 50, atkCd: 425, size: 2.3, miniboss: true,
       shark: true, projColor: '#ffd23f',
       trait: 'sharkbite', points: 1600 },
   };
@@ -1659,6 +1661,7 @@
       this.diving = false;
       this.raining = false; this.rainTimer = 0; this.rainX = 0; this.rainX2 = 0; // P. River's sky-rain attack
       this.biting = false; // Megalodon's jaw-open state
+      this.spinning = 0; this.spinHit = false; // Megalodon's tailswipe
       this.jumping = 0; this.jumpDur = 0; this.jumpTargetX = 0; // GRONK's jump-stomp
     }
     get progress() { return this.attackDuration > 0 ? clamp(1 - this.attackTimer / this.attackDuration, 0, 1) : 0; }
@@ -2029,6 +2032,22 @@
         // reframed as a shark closing for the kill, with the jaw visibly
         // opening for the strike.
         case 'sharkbite': {
+          if (this.spinning > 0) {
+            this.spinning -= dt;
+            this.spin += 0.55;
+            this.pose = 'kick';
+            if (!this.spinHit && this.spinning < 260) {
+              this.spinHit = true;
+              if (Math.hypot(player.x - this.x, player.y - this.y) < 95) {
+                player.takeDamage(this.def.dmg + 5, this.x);
+              }
+              shakeTimer = Math.max(shakeTimer, 200);
+              spawnHit(this.x, this.y, '#3fd7ff', 16, 1.4);
+              spawnImpactRing(this.x, this.y - 10, '#3fd7ff');
+            }
+            if (this.spinning <= 0) this.spin = 0;
+            return true;
+          }
           if (this.lunging > 0) {
             this.lunging -= dt;
             this.biting = true;
@@ -2043,12 +2062,20 @@
           }
           this.biting = false;
           const d = Math.hypot(player.x - this.x, player.y - this.y);
-          if (this.traitCd <= 0 && d > 90) {
+          if (this.traitCd <= 0) {
             this.traitCd = 2000;
-            this.facing = player.x > this.x ? 1 : -1;
-            this.lunging = 520;
-            this.say(SHARK_LINES[Math.floor(Math.random() * SHARK_LINES.length)], 1100);
-            spawnPopup(this.x, this.y - 150, 'CHOMP INCOMING!', '#ff5a47');
+            if (d > 90) {
+              this.facing = player.x > this.x ? 1 : -1;
+              this.lunging = 520;
+              this.say(SHARK_LINES[Math.floor(Math.random() * SHARK_LINES.length)], 1100);
+              spawnPopup(this.x, this.y - 150, 'CHOMP INCOMING!', '#ff5a47');
+            } else {
+              // in close, the bite doesn't have room to wind up -- he spins
+              // for a wide tailswipe instead
+              this.spinning = 620; this.spinHit = false;
+              this.say(SHARK_LINES[Math.floor(Math.random() * SHARK_LINES.length)], 1100);
+              spawnPopup(this.x, this.y - 150, 'TAILSWIPE!', '#3fd7ff', true);
+            }
             return true;
           }
           return false;
@@ -2070,7 +2097,7 @@
           }
           const d = Math.hypot(player.x - this.x, player.y - this.y);
           if (this.traitCd <= 0 && d > 90) {
-            this.traitCd = 3800;
+            this.traitCd = 1900;
             this.facing = player.x > this.x ? 1 : -1;
             this.lunging = 340;
             this.say(THIELEN_LINES[Math.floor(Math.random() * THIELEN_LINES.length)], 1000);
@@ -2098,7 +2125,7 @@
                 }
               }
               this.raining = false;
-              this.traitCd = 3600;
+              this.traitCd = 1800;
             }
             return true;
           }
@@ -2553,7 +2580,7 @@
         ctx.fillStyle = '#fff';
         ctx.font = 'bold 20px monospace';
         ctx.globalAlpha = clamp((t - flashEnd - 200) / 300, 0, 1);
-        ctx.fillText('SOMEHOW... STILL SECOND?', W / 2, H / 2 + 120);
+        ctx.fillText('NEVER GOING BACK TO THE PANTS STORE', W / 2, H / 2 + 120);
         ctx.globalAlpha = 1;
         ctx.textAlign = 'left';
       }
@@ -2846,10 +2873,15 @@
           ctx.globalAlpha = 1;
         }
         {
-          // Jason's Impression Slam has airtime purely for show -- it never
-          // touches the real jump/gravity system, just this render-time arc.
+          // Jason's Impression Slam and Mike's Drop the Bass both have
+          // airtime purely for show -- render-time arcs, not real physics.
+          // Mike's peaks and lands right at strike (0.62) so the stomp
+          // visually connects the instant he touches down.
           const leapZ = (d.pose === 'signature' && d.charKey === 'jason')
-            ? Math.sin(clamp(d.progress, 0, 1) * Math.PI) * 46 : d.jumpZ;
+            ? Math.sin(clamp(d.progress, 0, 1) * Math.PI) * 46
+            : (d.pose === 'signature' && d.charKey === 'mike')
+            ? Math.sin(clamp(d.progress / 0.62, 0, 1) * Math.PI) * 60
+            : d.jumpZ;
           // Andy's "Welcome In" special is a spinning kick -- like Jason's
           // leap, purely a render-time flourish, not real physics.
           const spinAmt = (d.pose === 'special' && d.charKey === 'andy')
@@ -2863,9 +2895,9 @@
           });
         }
       } else if (d === boss) {
-        drawRunnerUpBoss(ctx, boss, camX);
+        drawRunnerUpBoss(ctx, boss, camX, 2);
       } else if (d.isTwin) {
-        drawRunnerUpBoss(ctx, d, camX, 0.72);
+        drawRunnerUpBoss(ctx, d, camX, 1.44);
       } else if (d.def.shark) {
         drawSharkBoss(ctx, d, camX);
       } else if (d.def.flyer) {
