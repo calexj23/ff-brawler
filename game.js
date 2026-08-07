@@ -244,15 +244,21 @@
   let jkComboReady = false, jkComboAt = 0;
 
   const HANDLED = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space',
-    'KeyJ', 'KeyK', 'KeyL', 'KeyW', 'KeyA', 'KeyS', 'KeyD'];
+    'KeyJ', 'KeyK', 'KeyL', 'KeyA', 'KeyS', 'KeyD'];
+
+  // Arrows are movement-only now; A/S/D are the new J/K/L (aliased straight
+  // onto the same codes so every downstream check -- combos, cooldowns --
+  // works unchanged). W has no function.
+  const KEY_ALIAS = { KeyA: 'KeyJ', KeyS: 'KeyK', KeyD: 'KeyL' };
 
   window.addEventListener('keydown', (e) => {
     SFX.ensure();
-    if (!keys.has(e.code)) {
-      justPressed.add(e.code);
+    if (e.code === 'KeyW') return; // no function, by design
+    const code = KEY_ALIAS[e.code] || e.code;
+    if (!keys.has(code)) {
+      justPressed.add(code);
       const now = performance.now();
-      const dir = (e.code === 'ArrowRight' || e.code === 'KeyD') ? 1
-        : (e.code === 'ArrowLeft' || e.code === 'KeyA') ? -1 : 0;
+      const dir = code === 'ArrowRight' ? 1 : code === 'ArrowLeft' ? -1 : 0;
       if (dir !== 0) {
         if (lastTapAt[dir] && now - lastTapAt[dir] < 260) { doubleTapDir = dir; doubleTapAt = now; }
         lastTapAt[dir] = now;
@@ -260,18 +266,21 @@
       // J+K near-simultaneous, detected here (not per-frame) so a human's two
       // presses landing a frame or two apart -- or even the first one already
       // having fired a solo jab -- still register as the signature-move input.
-      if (e.code === 'KeyJ' || e.code === 'KeyK') {
-        const other = e.code === 'KeyJ' ? 'KeyK' : 'KeyJ';
+      if (code === 'KeyJ' || code === 'KeyK') {
+        const other = code === 'KeyJ' ? 'KeyK' : 'KeyJ';
         if (lastKeyDownAt[other] !== undefined && now - lastKeyDownAt[other] < 160) {
           jkComboReady = true; jkComboAt = now;
         }
-        lastKeyDownAt[e.code] = now;
+        lastKeyDownAt[code] = now;
       }
     }
-    keys.add(e.code);
+    keys.add(code);
     if (HANDLED.includes(e.code)) e.preventDefault();
   });
-  window.addEventListener('keyup', (e) => keys.delete(e.code));
+  window.addEventListener('keyup', (e) => {
+    if (e.code === 'KeyW') return;
+    keys.delete(KEY_ALIAS[e.code] || e.code);
+  });
   function pressed(code) { return keys.has(code); }
   function tapped(code) { return justPressed.has(code); }
   function consumeDoubleTap() {
@@ -685,13 +694,16 @@
     ctx.filter = 'none';
 
     if (glasses) {
-      // bigger, bolder frames -- the first pass read as a thin dark smudge
+      // real prescription glasses, not shades -- open frame outlines so the
+      // lens reads as see-through instead of a solid dark block. Drawn in
+      // this same locally-transformed space as the body, so it tracks with
+      // every walk/attack transform automatically (no separate fix needed).
       const gy = -dispH + 8 * scale;
-      px(ctx, -11 * scale, gy, 9 * scale, 7 * scale, '#141414');   // left lens
-      px(ctx, 2 * scale, gy, 9 * scale, 7 * scale, '#141414');     // right lens
+      ctx.strokeStyle = '#141414';
+      ctx.lineWidth = Math.max(1, scale);
+      ctx.strokeRect(-11 * scale, gy, 9 * scale, 7 * scale);
+      ctx.strokeRect(2 * scale, gy, 9 * scale, 7 * scale);
       px(ctx, -2 * scale, gy + 2 * scale, 4 * scale, 2 * scale, '#141414'); // bridge
-      px(ctx, -10 * scale, gy + 1 * scale, 2 * scale, 2 * scale, '#4a5568'); // left lens highlight
-      px(ctx, 3 * scale, gy + 1 * scale, 2 * scale, 2 * scale, '#4a5568');   // right lens highlight
     }
     if (cap) {
       // Ball cap. First pass only perched above the head and read as a thin
@@ -1264,9 +1276,12 @@
     'DOMINATE YOUR LEAGUE',
     'TITANIUM UNDIES!!!',
     'IS IT A HORSE? IS IT A MAN?',
+    'ICE YOUR FIRE',
+    'DROP IT LIKE IT\'S HAWT',
+    'NEWS AND NOTES!',
   ];
-  const THIELEN_LINES = ['MY BACK!', 'BACK IN MY DAY', 'HEY YOUNG FELLA'];
-  const RIVER_LINES = ["NOW I'M PISSED", 'WATCH ME FLOW', 'MAKE IT RAIN'];
+  const THIELEN_LINES = ['MY BACK!', 'BACK IN MY DAY', 'HEY YOUNG FELLA', 'WHAT\'S THAT NOW', 'VIKEY NO LIKEY'];
+  const RIVER_LINES = ["NOW I'M PISSED", 'WATCH ME FLOW', 'MAKE IT RAIN', 'DRIP DRIP DRIP!', 'GET FLUSHED!', 'CRY ME A ME!'];
   const GRONK_LINES = ['TIME TO GET GRONKED', 'GETTIN GRONKY WITH IT', 'GRONK LOVES YOU'];
   const SHARK_LINES = ['MEGALA...', 'GET IN MAH BELLY', 'THESE TEETH WERE MADE FOR CHOMPIN'];
 
@@ -1527,10 +1542,10 @@
         }
 
         let dx = 0, dy = 0;
-        if (pressed('ArrowLeft') || pressed('KeyA')) dx -= 1;
-        if (pressed('ArrowRight') || pressed('KeyD')) dx += 1;
-        if (pressed('ArrowUp') || pressed('KeyW')) dy -= 1;
-        if (pressed('ArrowDown') || pressed('KeyS')) dy += 1;
+        if (pressed('ArrowLeft')) dx -= 1;
+        if (pressed('ArrowRight')) dx += 1;
+        if (pressed('ArrowUp')) dy -= 1;
+        if (pressed('ArrowDown')) dy += 1;
 
         if (this.dashTimer > 0) {
           this.dashTimer -= dt;
@@ -1666,7 +1681,7 @@
       this.diving = false;
       this.raining = false; this.rainTimer = 0; this.rainX = 0; this.rainX2 = 0; // P. River's sky-rain attack
       this.biting = false; // Megalodon's jaw-open state
-      this.spinning = 0; this.spinHit = false; // Megalodon's tailswipe
+      this.spinning = 0; this.spinHit = false; this.chompCount = 0; // Megalodon's tailswipe
       this.jumping = 0; this.jumpDur = 0; this.jumpTargetX = 0; // GRONK's jump-stomp
     }
     get progress() { return this.attackDuration > 0 ? clamp(1 - this.attackTimer / this.attackDuration, 0, 1) : 0; }
@@ -1907,7 +1922,7 @@
             this.say('CLAIMED OFF WAIVERS', 1500);
             spawnPopup(this.x, this.y - 118, 'STOLEN!', '#7fbf6a');
             SFX.pickup();
-            this.traitCd = 1500;
+            this.traitCd = 1000; // 50% more frequent chatter/action
           } else {
             this.moveToward(best.x, best.y, 1.45);
             if (this.sayTimer <= 0) this.say('MINE', 700);
@@ -1930,7 +1945,7 @@
             mark.takeDamage(999, this.x, 4, true);
             this.say('VULTURED!', 1400);
             spawnPopup(mark.x, mark.y - 132, 'KILL STOLEN', '#ff5a47');
-            this.traitCd = 2000;
+            this.traitCd = 1333;
           } else {
             this.moveToward(mark.x, mark.y, 1.5);
           }
@@ -1940,7 +1955,7 @@
         // --- Trash Talker: runs his mouth and hypes up everyone around him
         case 'hype': {
           if (this.traitCd > 0) return false;
-          this.traitCd = 5200;
+          this.traitCd = 3467;
           let hypedAny = false;
           for (const en of world.enemies) {
             if (en === this || !en.alive || en.dying) continue;
@@ -1965,7 +1980,7 @@
           }
           const d = Math.hypot(player.x - this.x, player.y - this.y);
           if (this.traitCd <= 0 && d > 70 && d < 260) {
-            this.traitCd = rand(2600, 4200);
+            this.traitCd = rand(1733, 2800);
             this.facing = player.x > this.x ? 1 : -1;
             this.lunging = 300;
             this.say('REACH!', 800);
@@ -1979,7 +1994,7 @@
           if (this.traitCd > 0) return false;
           const d = Math.hypot(player.x - this.x, player.y - this.y);
           if (d < 70 && player.hitbox) {
-            this.traitCd = 4200;
+            this.traitCd = 2800;
             this.knockX += (this.x < player.x ? -1 : 1) * 12;   // slip back
             this.say('DOMINATE YOUR LEAGUE', 900);
             this.atkCd = 0;                                      // punish immediately
@@ -2003,7 +2018,7 @@
             return true;
           }
           if (this.traitCd <= 0) {
-            this.traitCd = 4200;
+            this.traitCd = 2800;
             this.diving = true;
             this.facing = player.x > this.x ? 1 : -1;
             this.tvx = this.facing * 7.5;
@@ -2017,7 +2032,7 @@
         // --- Card Shark: fans a spread of cards across three lanes
         case 'cardfan': {
           if (this.traitCd > 0) return false;
-          this.traitCd = 3800;
+          this.traitCd = 2533;
           const dir = player.x > this.x ? 1 : -1;
           this.facing = dir;
           for (const off of [-46, 0, 46]) {
@@ -2068,20 +2083,27 @@
           this.biting = false;
           const d = Math.hypot(player.x - this.x, player.y - this.y);
           if (this.traitCd <= 0) {
-            this.traitCd = 2000;
-            if (d > 90) {
+            // leads every engagement with chomps -- tailswipe only unlocks
+            // after 4 chomps in a row, then the count resets. traitCd only
+            // gets spent on an attack that actually happens, not a whiffed
+            // check, so he doesn't sit idle when just out of chomp range.
+            if (this.chompCount < 4 && d > 90) {
+              this.traitCd = 667; // 3x his old attack frequency
+              this.chompCount++;
               this.facing = player.x > this.x ? 1 : -1;
               this.lunging = 520;
               this.say(SHARK_LINES[Math.floor(Math.random() * SHARK_LINES.length)], 1100);
-              spawnPopup(this.x, this.y - 150, 'CHOMP INCOMING!', '#ff5a47');
-            } else {
+              return true;
+            } else if (d <= 90) {
               // in close, the bite doesn't have room to wind up -- he spins
               // for a wide tailswipe instead
+              this.traitCd = 667;
+              this.chompCount = 0;
               this.spinning = 620; this.spinHit = false;
               this.say(SHARK_LINES[Math.floor(Math.random() * SHARK_LINES.length)], 1100);
               spawnPopup(this.x, this.y - 150, 'TAILSWIPE!', '#3fd7ff', true);
+              return true;
             }
-            return true;
           }
           return false;
         }
@@ -2102,7 +2124,7 @@
           }
           const d = Math.hypot(player.x - this.x, player.y - this.y);
           if (this.traitCd <= 0 && d > 90) {
-            this.traitCd = 1900;
+            this.traitCd = 1100;
             this.facing = player.x > this.x ? 1 : -1;
             this.lunging = 340;
             this.say(THIELEN_LINES[Math.floor(Math.random() * THIELEN_LINES.length)], 1000);
@@ -2138,8 +2160,6 @@
             this.raining = true; this.rainTimer = 620;
             this.rainX = player.x; this.rainX2 = this.x; // two danger zones: on the player, and under him
             this.say(RIVER_LINES[Math.floor(Math.random() * RIVER_LINES.length)], 950);
-            spawnPopup(this.rainX, GROUND_Y - 40, 'INCOMING!', '#f4e04d', true);
-            spawnPopup(this.rainX2, GROUND_Y - 40, 'INCOMING!', '#f4e04d', true);
             return true;
           }
           return false;
@@ -2188,7 +2208,6 @@
               this.jumpTargetX = clamp(player.x, 40, world.width - 40);
               this.facing = player.x > this.x ? 1 : -1;
               this.say(GRONK_LINES[Math.floor(Math.random() * GRONK_LINES.length)], 1000);
-              spawnPopup(this.x, this.y - 150, 'GRONK SMASH INCOMING!', '#ff5a47', true);
               SFX.jump();
             } else if (d < 100) {
               shakeTimer = Math.max(shakeTimer, 220);
@@ -2353,7 +2372,7 @@
     stageStats = { kills: 0, bestCombo: 0, deaths: 0, startScore: score, startLives: lives };
 
     bannerText = lvl.name;
-    bannerSub = idx === 0 ? 'J: punch (tap x3 to combo)   K: heavy   L: special   double-tap: dash' : '';
+    bannerSub = idx === 0 ? 'J/A: punch (tap x3 to combo)   K/S: heavy   L/D: special   double-tap: dash' : '';
     bannerTimer = 2600;
   }
 
@@ -2589,9 +2608,16 @@
         ctx.globalAlpha = 1;
         ctx.textAlign = 'left';
       }
+      if (t > flashEnd + 700 && Math.floor(t / 500) % 2 === 0) {
+        ctx.textAlign = 'center';
+        ctx.font = 'bold 16px monospace';
+        ctx.fillStyle = '#ffd23f';
+        ctx.fillText('PRESS SPACE TO CONTINUE', W / 2, H / 2 + 160);
+        ctx.textAlign = 'left';
+      }
     }
 
-    if (t > 3000 && !mergeDone) {
+    if (t > flashEnd + 700 && tapped('Space') && !mergeDone) {
       mergeDone = true;
       addScore(5000, W / 2, H / 2 - 200, 'BOSS');
       saveHighScore();
@@ -3131,7 +3157,7 @@
     ctx.textAlign = 'center';
     ctx.font = '12px monospace';
     ctx.fillStyle = '#8fd3ff';
-    ctx.fillText('MOVE arrows/WASD   PUNCH J (x3 combo)   HEAVY K   SPECIAL L   JUMP space   DASH double-tap', W / 2, 440);
+    ctx.fillText('MOVE arrows   PUNCH J/A (x3 combo)   HEAVY K/S   SPECIAL L/D   JUMP space   DASH double-tap arrows', W / 2, 440);
     ctx.fillText('Press J+K together for a signature move — different for every host.', W / 2, 458);
     ctx.fillText('Stun an enemy, walk in and press J to GRAB — then K to throw them into the pack.', W / 2, 476);
     ctx.fillStyle = '#6a7290';
@@ -3290,10 +3316,6 @@
     ctx.font = 'italic bold 16px monospace';
     ctx.fillStyle = '#8fd3ff';
     ctx.fillText(CHAR_DEFS[selectedChar].victory, W / 2, 188);
-    ctx.font = '14px monospace';
-    ctx.fillStyle = '#fff';
-    wrapText('earns a spot at the table. FootClan Brawler complete — ready to submit for the Fantasy Footballers Listener League.', W / 2, 214, 720, 20);
-
     ctx.font = 'bold 24px monospace';
     ctx.fillStyle = '#ffd23f';
     ctx.fillText('FINAL SCORE  ' + String(score).padStart(7, '0'), W / 2, 268);
@@ -3344,8 +3366,8 @@
       if (tapped('Space')) state = 'select';
     } else if (state === 'select') {
       Music.play('title');
-      if (tapped('ArrowRight') || tapped('KeyD')) selIndex = (selIndex + 1) % CHAR_ORDER.length;
-      if (tapped('ArrowLeft') || tapped('KeyA')) selIndex = (selIndex - 1 + CHAR_ORDER.length) % CHAR_ORDER.length;
+      if (tapped('ArrowRight')) selIndex = (selIndex + 1) % CHAR_ORDER.length;
+      if (tapped('ArrowLeft')) selIndex = (selIndex - 1 + CHAR_ORDER.length) % CHAR_ORDER.length;
       selectedChar = CHAR_ORDER[selIndex];
       drawSelect();
       if (tapped('Space')) startGame();
@@ -3383,4 +3405,29 @@
 
   requestAnimationFrame(frame);
   Promise.all([loadSprites(), loadHostPhotos()]).then(() => { state = 'title'; });
+
+  window.__debug = {
+    goto: (ch, levelIdx_) => {
+      selectedChar = ch; selIndex = CHAR_ORDER.indexOf(ch);
+      player = new Player(ch);
+      levelIdx = levelIdx_; lives = START_LIVES; score = 0; scoreShown = 0;
+      loadLevel(levelIdx_);
+      state = 'playing';
+      bannerTimer = 0;
+    },
+    clearEnemies: () => { enemies = enemies.filter(e => e === boss); },
+    spawnMini: (key, x, y) => { const e = new Enemy(key, x, y); e.engaged = true; enemies.push(e); return e; },
+    advance: (ms) => {
+      const n = Math.round(ms / 16);
+      for (let i = 0; i < n; i++) {
+        if (state === 'playing') update(16);
+        else if (state === 'twomerge') drawTwoMerge(16);
+      }
+      if (state === 'playing') render();
+    },
+    setMeter: (v) => { player.meter = v; },
+    setBossHp: (v) => { if (boss) boss.hp = v; },
+    killTwins: () => { for (const t of bossTwins) { t.hp = 0; t.dying = true; t.alive = false; t.deathTimer = 0; } },
+    info: () => ({ state, hasBoss: !!boss, twinCount: bossTwins.length, enemyCount: enemies.length }),
+  };
 })();
