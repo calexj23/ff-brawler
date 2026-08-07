@@ -16,6 +16,11 @@ html, body {
   color: #fff;
 }
 
+/* Transparent wrapper on desktop -- #frame lays out exactly as before.
+   Touch devices turn this into the real flex column (frame + controls bar). */
+#app { display: contents; }
+#rotate-prompt { display: none; }
+
 #frame {
   position: relative;
   width: 960px;
@@ -86,18 +91,14 @@ canvas {
 }
 
 /* ---- on-screen touch controls ---------------------------------------
-   Only shown on touch-primary devices (no hover, coarse pointer) so
-   keyboard/mouse players never see them. */
+   Live in a bar BELOW the screen, never on top of it, and only on
+   touch-primary devices (no hover, coarse pointer) -- keyboard/mouse
+   players never see any of this. Landscape only: portrait shows a
+   rotate prompt instead (see bottom of file). */
 #touch-controls {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
   display: none;
   -webkit-user-select: none;
   user-select: none;
-}
-@media (hover: none) and (pointer: coarse) {
-  #touch-controls { display: block; }
 }
 
 .tc-btn {
@@ -108,57 +109,118 @@ canvas {
   justify-content: center;
   border-radius: 50%;
   border: 2px solid rgba(255, 255, 255, 0.4);
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.14);
   color: #fff;
   font-family: 'Courier New', monospace;
   font-weight: bold;
-  font-size: clamp(11px, 3.2vw, 18px);
+  font-size: clamp(11px, 2.6vh, 18px);
   touch-action: none;
   -webkit-tap-highlight-color: transparent;
   -webkit-user-select: none;
   user-select: none;
 }
-.tc-btn:active { background: rgba(255, 255, 255, 0.38); }
+.tc-btn:active { background: rgba(255, 255, 255, 0.4); }
 
-#tc-dpad {
-  position: absolute;
-  left: 3%;
-  bottom: 8%;
-  width: 32%;
-  max-width: 190px;
-  aspect-ratio: 1;
-}
 #tc-dpad .tc-btn { width: 32%; height: 32%; }
 .tc-up    { left: 34%; top: 0; }
 .tc-left  { left: 0;   top: 34%; }
 .tc-right { left: 68%; top: 34%; }
 .tc-down  { left: 34%; top: 68%; }
 
-#tc-actions {
-  position: absolute;
-  right: 3%;
-  bottom: 8%;
-  width: 38%;
-  max-width: 220px;
-  aspect-ratio: 1;
-}
 #tc-actions .tc-btn { width: 34%; height: 34%; }
-.tc-jump    { left: 33%; top: 0; }
+.tc-jump    { left: 33%; top: 0; flex-direction: column; line-height: 1.1; font-size: clamp(9px, 2vh, 14px); }
+.tc-jump .tc-sub { font-size: 0.75em; opacity: 0.8; }
 .tc-punch   { left: 0;   top: 33%; }
 .tc-special { left: 66%; top: 33%; }
 .tc-heavy   { left: 33%; top: 66%; }
 
-#tc-mini {
-  position: absolute;
-  top: 3%;
-  right: 3%;
-  display: flex;
-  gap: 8px;
-}
+#tc-mini { display: flex; }
 #tc-mini .tc-btn {
   position: static;
-  width: 34px;
-  height: 34px;
-  font-size: 12px;
+  width: 30px;
+  height: 30px;
+  font-size: 11px;
   background: rgba(255, 255, 255, 0.08);
+}
+
+@media (hover: none) and (pointer: coarse) {
+  :root { --tc-bar-h: clamp(96px, 22vh, 150px); }
+
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  #app {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+  }
+
+  #frame {
+    width: auto;
+    height: auto;
+    max-width: 100vw;
+    max-height: calc(100vh - var(--tc-bar-h));
+    aspect-ratio: 16 / 9;
+    margin: 0;
+  }
+  canvas { width: 100%; height: 100%; }
+
+  /* the bar itself: real layout space below the screen, not an overlay */
+  #touch-controls {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    max-width: 100vw;
+    height: var(--tc-bar-h);
+    flex-shrink: 0;
+    padding: 6px 3vw;
+    background: #0a0a12;
+    border-top: 2px solid #3a3a55;
+  }
+
+  #tc-dpad, #tc-actions {
+    position: relative;
+    height: 90%;
+    aspect-ratio: 1;
+    flex-shrink: 0;
+  }
+  #tc-mini {
+    flex-direction: column;
+    gap: 6px;
+  }
+}
+
+/* portrait on a touch device: block the game, ask for a rotate --
+   there isn't enough width in portrait for the controls bar to work */
+@media (hover: none) and (pointer: coarse) and (orientation: portrait) {
+  #app { display: none; }
+  #rotate-prompt {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    width: 100%;
+    height: 100%;
+    text-align: center;
+    padding: 24px;
+  }
+  #rotate-prompt .rotate-icon {
+    font-size: 48px;
+    animation: rotate-hint 1.6s ease-in-out infinite;
+  }
+  #rotate-prompt p { font-size: 16px; line-height: 1.7; margin: 0; }
+  #rotate-prompt span { font-size: 12px; color: #8a92ad; }
+  @keyframes rotate-hint {
+    0%, 100% { transform: rotate(0deg); }
+    50% { transform: rotate(90deg); }
+  }
 }

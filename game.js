@@ -2673,7 +2673,7 @@
         ctx.textAlign = 'center';
         ctx.font = 'bold 16px monospace';
         ctx.fillStyle = '#ffd23f';
-        ctx.fillText('PRESS SPACE TO CONTINUE', W / 2, H / 2 + 160);
+        ctx.fillText('PRESS SPACE / JUMP TO CONTINUE', W / 2, H / 2 + 160);
         ctx.textAlign = 'left';
       }
     }
@@ -3273,7 +3273,7 @@
     if (Math.floor(t / 500) % 2 === 0) {
       ctx.font = 'bold 20px monospace';
       ctx.fillStyle = '#fff';
-      ctx.fillText('WELCOME IN. PRESS SPACE TO START', W / 2, 508);
+      ctx.fillText('WELCOME IN. PRESS SPACE / JUMP TO START', W / 2, 508);
     }
     ctx.textAlign = 'left';
   }
@@ -3285,7 +3285,7 @@
     drawNeonTitle('CHOOSE YOUR FOOTBRAWLER', W / 2, 55, 28, '#3fd7ff');
     ctx.font = '13px monospace';
     ctx.fillStyle = '#fff';
-    ctx.fillText('← → to choose   SPACE to confirm', W / 2, 88);
+    ctx.fillText('← → to choose   SPACE / JUMP to confirm', W / 2, 88);
 
     const colors = { andy: '#ffd23f', jason: '#7c5cff', mike: '#ff5fa2' };
     const def = CHAR_DEFS[CHAR_ORDER[selIndex]];
@@ -3385,7 +3385,7 @@
       ctx.textAlign = 'center';
       ctx.fillStyle = '#fff';
       ctx.font = 'bold 15px monospace';
-      ctx.fillText('PRESS SPACE TO CONTINUE', W / 2, 508);
+      ctx.fillText('PRESS SPACE / JUMP TO CONTINUE', W / 2, 508);
     }
     ctx.textAlign = 'left';
   }
@@ -3418,7 +3418,7 @@
     if (Math.floor(t / 500) % 2 === 0) {
       ctx.font = 'bold 16px monospace';
       ctx.fillStyle = '#fff';
-      ctx.fillText('PRESS SPACE TO GO BACK', W / 2, 500);
+      ctx.fillText('PRESS SPACE / JUMP TO GO BACK', W / 2, 500);
     }
     ctx.textAlign = 'left';
   }
@@ -3481,7 +3481,7 @@
     ctx.fillText('YOU GOT BENCHED', W / 2, 240);
     ctx.fillStyle = '#fff';
     ctx.font = '16px monospace';
-    ctx.fillText('Press SPACE to try again', W / 2, 290);
+    ctx.fillText('Press SPACE / JUMP to try again', W / 2, 290);
     ctx.textAlign = 'left';
   }
 
@@ -3522,7 +3522,7 @@
     if (Math.floor(t / 500) % 2 === 0) {
       ctx.font = 'bold 16px monospace';
       ctx.fillStyle = '#fff';
-      ctx.fillText('PRESS SPACE FOR TITLE SCREEN', W / 2, 522);
+      ctx.fillText('PRESS SPACE / JUMP FOR TITLE SCREEN', W / 2, 522);
     }
     ctx.textAlign = 'left';
   }

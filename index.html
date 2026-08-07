@@ -7,10 +7,16 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div id="frame">
-    <canvas id="game" width="960" height="540"></canvas>
-    <div id="overlay"></div>
-    <input id="tc-name-input" type="text" maxlength="40" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+  <div id="rotate-prompt">
+    <div class="rotate-icon">⟳</div>
+    <p>ROTATE YOUR DEVICE<br><span>FootClan Brawler plays in landscape</span></p>
+  </div>
+  <div id="app">
+    <div id="frame">
+      <canvas id="game" width="960" height="540"></canvas>
+      <div id="overlay"></div>
+      <input id="tc-name-input" type="text" maxlength="40" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+    </div>
     <div id="touch-controls">
       <div id="tc-dpad">
         <button type="button" class="tc-btn tc-up" data-key="ArrowUp">▲</button>
@@ -18,18 +24,18 @@
         <button type="button" class="tc-btn tc-right" data-key="ArrowRight">▶</button>
         <button type="button" class="tc-btn tc-down" data-key="ArrowDown">▼</button>
       </div>
-      <div id="tc-actions">
-        <button type="button" class="tc-btn tc-jump" data-key="Space">JUMP</button>
-        <button type="button" class="tc-btn tc-punch" data-key="KeyJ">J</button>
-        <button type="button" class="tc-btn tc-heavy" data-key="KeyK">K</button>
-        <button type="button" class="tc-btn tc-special" data-key="KeyL">L</button>
-      </div>
       <div id="tc-mini">
         <button type="button" class="tc-btn tc-mini-btn" data-key="KeyM">M</button>
         <button type="button" class="tc-btn tc-mini-btn" data-key="KeyH">H</button>
       </div>
+      <div id="tc-actions">
+        <button type="button" class="tc-btn tc-jump" data-key="Space"><span>JUMP</span><span class="tc-sub">/ OK</span></button>
+        <button type="button" class="tc-btn tc-punch" data-key="KeyJ">J</button>
+        <button type="button" class="tc-btn tc-heavy" data-key="KeyK">K</button>
+        <button type="button" class="tc-btn tc-special" data-key="KeyL">L</button>
+      </div>
     </div>
   </div>
-  <script src="game.js?v=44"></script>
+  <script src="game.js?v=45"></script>
 </body>
 </html>
