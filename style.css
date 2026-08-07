@@ -108,43 +108,45 @@ canvas {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.4);
-  background: rgba(255, 255, 255, 0.14);
+  border: 2px solid rgba(255, 255, 255, 0.45);
+  background: rgba(255, 255, 255, 0.16);
   color: #fff;
   font-family: 'Courier New', monospace;
   font-weight: bold;
-  font-size: clamp(11px, 2.6vh, 18px);
+  font-size: clamp(13px, 3.2vh, 22px);
   touch-action: none;
   -webkit-tap-highlight-color: transparent;
   -webkit-user-select: none;
   user-select: none;
 }
-.tc-btn:active { background: rgba(255, 255, 255, 0.4); }
+.tc-btn:active { background: rgba(255, 255, 255, 0.42); }
 
-#tc-dpad .tc-btn { width: 32%; height: 32%; }
-.tc-up    { left: 34%; top: 0; }
-.tc-left  { left: 0;   top: 34%; }
-.tc-right { left: 68%; top: 34%; }
-.tc-down  { left: 34%; top: 68%; }
+#tc-dpad .tc-btn { width: 38%; height: 38%; }
+.tc-up    { left: 31%; top: 0; }
+.tc-left  { left: 0;   top: 31%; }
+.tc-right { left: 62%; top: 31%; }
+.tc-down  { left: 31%; top: 62%; }
 
-#tc-actions .tc-btn { width: 34%; height: 34%; }
-.tc-jump    { left: 33%; top: 0; flex-direction: column; line-height: 1.1; font-size: clamp(9px, 2vh, 14px); }
+/* 2x2 grid, not a diamond -- J and K sit side by side so both thumbs can
+   land on them at once for the J+K signature-move combo. */
+#tc-actions .tc-btn { width: 47%; height: 47%; border-radius: 22%; }
+.tc-punch   { left: 0;   top: 0; }
+.tc-heavy   { left: 53%; top: 0; }
+.tc-special { left: 0;   top: 53%; }
+.tc-jump    { left: 53%; top: 53%; flex-direction: column; line-height: 1.1; font-size: clamp(11px, 2.4vh, 16px); }
 .tc-jump .tc-sub { font-size: 0.75em; opacity: 0.8; }
-.tc-punch   { left: 0;   top: 33%; }
-.tc-special { left: 66%; top: 33%; }
-.tc-heavy   { left: 33%; top: 66%; }
 
 #tc-mini { display: flex; }
 #tc-mini .tc-btn {
   position: static;
-  width: 30px;
-  height: 30px;
-  font-size: 11px;
-  background: rgba(255, 255, 255, 0.08);
+  width: 40px;
+  height: 40px;
+  font-size: 13px;
+  background: rgba(255, 255, 255, 0.1);
 }
 
 @media (hover: none) and (pointer: coarse) {
-  :root { --tc-bar-h: clamp(96px, 22vh, 150px); }
+  :root { --tc-bar-h: clamp(130px, 30vh, 200px); }
 
   body {
     display: flex;
@@ -188,13 +190,13 @@ canvas {
 
   #tc-dpad, #tc-actions {
     position: relative;
-    height: 90%;
+    height: 96%;
     aspect-ratio: 1;
     flex-shrink: 0;
   }
   #tc-mini {
     flex-direction: column;
-    gap: 6px;
+    gap: 8px;
   }
 }
 
