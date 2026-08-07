@@ -53,3 +53,112 @@ canvas {
     height: 100%;
   }
 }
+
+/* ---- mobile name-entry input --------------------------------------- */
+/* Invisible, positioned exactly over the box drawn on the leaderboard
+   name-entry screen -- tapping/clicking it summons the real keyboard
+   (iOS requires a direct tap on a real form control to do this) while
+   the canvas drawing underneath still shows the "typed" text. */
+#tc-name-input {
+  position: absolute;
+  left: 22.92%;
+  top: 41.67%;
+  width: 54.17%;
+  height: 7.41%;
+  margin: 0;
+  padding: 0 8px;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: transparent;
+  caret-color: transparent;
+  font-size: 16px; /* keeps iOS Safari from auto-zooming on focus */
+  display: none;
+  z-index: 5;
+}
+#frame.show-name-input #tc-name-input {
+  display: block;
+  pointer-events: auto;
+}
+#frame.show-name-input #tc-dpad,
+#frame.show-name-input #tc-actions {
+  display: none;
+}
+
+/* ---- on-screen touch controls ---------------------------------------
+   Only shown on touch-primary devices (no hover, coarse pointer) so
+   keyboard/mouse players never see them. */
+#touch-controls {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  display: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+@media (hover: none) and (pointer: coarse) {
+  #touch-controls { display: block; }
+}
+
+.tc-btn {
+  position: absolute;
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-family: 'Courier New', monospace;
+  font-weight: bold;
+  font-size: clamp(11px, 3.2vw, 18px);
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.tc-btn:active { background: rgba(255, 255, 255, 0.38); }
+
+#tc-dpad {
+  position: absolute;
+  left: 3%;
+  bottom: 8%;
+  width: 32%;
+  max-width: 190px;
+  aspect-ratio: 1;
+}
+#tc-dpad .tc-btn { width: 32%; height: 32%; }
+.tc-up    { left: 34%; top: 0; }
+.tc-left  { left: 0;   top: 34%; }
+.tc-right { left: 68%; top: 34%; }
+.tc-down  { left: 34%; top: 68%; }
+
+#tc-actions {
+  position: absolute;
+  right: 3%;
+  bottom: 8%;
+  width: 38%;
+  max-width: 220px;
+  aspect-ratio: 1;
+}
+#tc-actions .tc-btn { width: 34%; height: 34%; }
+.tc-jump    { left: 33%; top: 0; }
+.tc-punch   { left: 0;   top: 33%; }
+.tc-special { left: 66%; top: 33%; }
+.tc-heavy   { left: 33%; top: 66%; }
+
+#tc-mini {
+  position: absolute;
+  top: 3%;
+  right: 3%;
+  display: flex;
+  gap: 8px;
+}
+#tc-mini .tc-btn {
+  position: static;
+  width: 34px;
+  height: 34px;
+  font-size: 12px;
+  background: rgba(255, 255, 255, 0.08);
+}

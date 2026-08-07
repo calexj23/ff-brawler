@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>FootClan Brawler</title>
 <link rel="stylesheet" href="style.css">
 </head>
@@ -10,7 +10,26 @@
   <div id="frame">
     <canvas id="game" width="960" height="540"></canvas>
     <div id="overlay"></div>
+    <input id="tc-name-input" type="text" maxlength="40" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+    <div id="touch-controls">
+      <div id="tc-dpad">
+        <button type="button" class="tc-btn tc-up" data-key="ArrowUp">▲</button>
+        <button type="button" class="tc-btn tc-left" data-key="ArrowLeft">◀</button>
+        <button type="button" class="tc-btn tc-right" data-key="ArrowRight">▶</button>
+        <button type="button" class="tc-btn tc-down" data-key="ArrowDown">▼</button>
+      </div>
+      <div id="tc-actions">
+        <button type="button" class="tc-btn tc-jump" data-key="Space">JUMP</button>
+        <button type="button" class="tc-btn tc-punch" data-key="KeyJ">J</button>
+        <button type="button" class="tc-btn tc-heavy" data-key="KeyK">K</button>
+        <button type="button" class="tc-btn tc-special" data-key="KeyL">L</button>
+      </div>
+      <div id="tc-mini">
+        <button type="button" class="tc-btn tc-mini-btn" data-key="KeyM">M</button>
+        <button type="button" class="tc-btn tc-mini-btn" data-key="KeyH">H</button>
+      </div>
+    </div>
   </div>
-  <script src="game.js?v=41"></script>
+  <script src="game.js?v=42"></script>
 </body>
 </html>

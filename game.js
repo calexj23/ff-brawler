@@ -8,6 +8,8 @@
   const screenCtx = canvas.getContext('2d');
   screenCtx.imageSmoothingEnabled = false;
   const W = canvas.width, H = canvas.height;
+  const frameEl = document.getElementById('frame');
+  const nameInputEl = document.getElementById('tc-name-input');
 
   // Render into a low-res buffer, then blit it up with smoothing off --
   // that's what gives the genuine chunky-pixel look.
@@ -248,16 +250,9 @@
   // works unchanged). W is aliased to Space (jump).
   const KEY_ALIAS = { KeyA: 'KeyJ', KeyS: 'KeyK', KeyD: 'KeyL', KeyW: 'Space' };
 
-  window.addEventListener('keydown', (e) => {
-    SFX.ensure();
-    if (nameEntry.active) {
-      if (e.key === 'Enter') { submitNameEntry(); }
-      else if (e.key === 'Backspace') { nameEntry.text = nameEntry.text.slice(0, -1); }
-      else if (e.key.length === 1 && nameEntry.text.length < 40) { nameEntry.text += e.key; }
-      e.preventDefault();
-      return;
-    }
-    const code = KEY_ALIAS[e.code] || e.code;
+  // Shared by the real keyboard listener below and the on-screen touch
+  // buttons, so combo/double-tap detection only lives in one place.
+  function handleVirtualKeyDown(code) {
     if (!keys.has(code)) {
       justPressed.add(code);
       const now = performance.now();
@@ -278,10 +273,27 @@
       }
     }
     keys.add(code);
+  }
+  function handleVirtualKeyUp(code) {
+    keys.delete(code);
+  }
+
+  window.addEventListener('keydown', (e) => {
+    SFX.ensure();
+    if (nameEntry.active) {
+      if (e.target === nameInputEl) return; // mobile: the native input handles its own text
+      if (e.key === 'Enter') { submitNameEntry(); }
+      else if (e.key === 'Backspace') { nameEntry.text = nameEntry.text.slice(0, -1); }
+      else if (e.key.length === 1 && nameEntry.text.length < 40) { nameEntry.text += e.key; }
+      e.preventDefault();
+      return;
+    }
+    const code = KEY_ALIAS[e.code] || e.code;
+    handleVirtualKeyDown(code);
     if (HANDLED.includes(e.code)) e.preventDefault();
   });
   window.addEventListener('keyup', (e) => {
-    keys.delete(KEY_ALIAS[e.code] || e.code);
+    handleVirtualKeyUp(KEY_ALIAS[e.code] || e.code);
   });
   function pressed(code) { return keys.has(code); }
   function tapped(code) { return justPressed.has(code); }
@@ -2351,6 +2363,7 @@
     nameEntry.text = '';
     nameEntry.afterState = afterState;
     state = 'nameentry';
+    if (nameInputEl) nameInputEl.value = '';
   }
   function submitNameEntry() {
     const name = nameEntry.text.trim().slice(0, 40) || 'ANONYMOUS';
@@ -2361,6 +2374,7 @@
     nameEntry.active = false;
     state = nameEntry.afterState;
     if (state === 'win') winTimer = 0;
+    if (nameInputEl) nameInputEl.blur();
   }
 
   function addScore(n, x, y, label) {
@@ -3579,6 +3593,8 @@
       if (tapped('Space')) state = 'title';
     }
 
+    if (frameEl) frameEl.classList.toggle('show-name-input', state === 'nameentry');
+
     screenCtx.imageSmoothingEnabled = false;
     screenCtx.drawImage(buf, 0, 0, BW, BH, 0, 0, W, H);
 
@@ -3588,4 +3604,51 @@
 
   requestAnimationFrame(frame);
   Promise.all([loadSprites(), loadHostPhotos()]).then(() => { state = 'title'; });
+
+  // ---- touch controls: on-screen d-pad + action buttons, bound onto
+  // the same virtual-key handlers the real keyboard uses ------------------
+  document.querySelectorAll('.tc-btn[data-key]').forEach((el) => {
+    const code = el.dataset.key;
+    const down = (e) => {
+      e.preventDefault();
+      SFX.ensure();
+      handleVirtualKeyDown(code);
+    };
+    const up = (e) => {
+      e.preventDefault();
+      handleVirtualKeyUp(code);
+    };
+    el.addEventListener('touchstart', down, { passive: false });
+    el.addEventListener('touchend', up, { passive: false });
+    el.addEventListener('touchcancel', up, { passive: false });
+    // mouse fallback, for testing on a touch-emulated desktop browser
+    el.addEventListener('mousedown', down);
+    el.addEventListener('mouseup', up);
+    el.addEventListener('mouseleave', up);
+  });
+
+  // ---- mobile name entry: a real (invisible) input positioned over the
+  // drawn box so tapping it summons the OS keyboard, syncing its value
+  // into nameEntry.text the same way the desktop key-capture path does.
+  if (nameInputEl) {
+    nameInputEl.addEventListener('input', () => {
+      nameEntry.text = nameInputEl.value.slice(0, 40);
+    });
+    nameInputEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); submitNameEntry(); }
+    });
+  }
+
+  window.__debug = {
+    goto: (ch, levelIdx_) => {
+      selectedChar = ch; selIndex = CHAR_ORDER.indexOf(ch);
+      player = new Player(ch);
+      levelIdx = levelIdx_; lives = START_LIVES; score = 0; scoreShown = 0;
+      loadLevel(levelIdx_);
+      state = 'playing';
+      bannerTimer = 0;
+    },
+    info: () => ({ state, playerX: player && player.x, playerY: player && player.y, playerHealth: player && player.health }),
+    triggerGameOver: () => { score = 4242; enterNameEntry('gameover'); },
+  };
 })();
