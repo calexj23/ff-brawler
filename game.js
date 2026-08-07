@@ -1279,6 +1279,7 @@
     'NEWS AND NOTES!',
   ];
   const THIELEN_LINES = ['MY BACK!', 'BACK IN MY DAY', 'HEY YOUNG FELLA', 'WHAT\'S THAT NOW', 'VIKEY NO LIKEY'];
+  const REACH_LINES = ['NOT AT THAT ADP', "SLEEPER'S GOTTA SLEEP", "YOU'RE AN RB ZERO"];
   const RIVER_LINES = ["NOW I'M PISSED", 'WATCH ME FLOW', 'MAKE IT RAIN', 'DRIP DRIP DRIP!', 'GET FLUSHED!', 'CRY ME A ME!', 'SLIP N SLIDE'];
   const GRONK_LINES = ['TIME TO GET GRONKED', 'GETTIN GRONKY WITH IT', 'GRONK LOVES YOU', 'COME TO GRONKY', 'GRONK FOR PRESIDENT', 'GRONK IS ALL, ALL IS GRONK'];
   const SHARK_LINES = ['MEGALA...', 'GET IN MAH BELLY', 'THESE TEETH WERE MADE FOR CHOMPIN', 'OM NOM NOM', 'I WANT A SHAKE WITH THOSE FRIES'];
@@ -2002,7 +2003,7 @@
             this.traitCd = rand(1733, 2800);
             this.facing = player.x > this.x ? 1 : -1;
             this.lunging = 300;
-            this.say('REACH!', 800);
+            this.say(REACH_LINES[Math.floor(Math.random() * REACH_LINES.length)], 800);
             return true;
           }
           return false;
@@ -3471,28 +3472,4 @@
   requestAnimationFrame(frame);
   Promise.all([loadSprites(), loadHostPhotos()]).then(() => { state = 'title'; });
 
-  window.__debug = {
-    goto: (ch, levelIdx_) => {
-      selectedChar = ch; selIndex = CHAR_ORDER.indexOf(ch);
-      player = new Player(ch);
-      levelIdx = levelIdx_; lives = START_LIVES; score = 0; scoreShown = 0;
-      loadLevel(levelIdx_);
-      state = 'playing';
-      bannerTimer = 0;
-    },
-    clearEnemies: () => { enemies = enemies.filter(e => e === boss); },
-    spawnMini: (key, x, y) => { const e = new Enemy(key, x, y); e.engaged = true; enemies.push(e); return e; },
-    advance: (ms) => {
-      const n = Math.round(ms / 16);
-      for (let i = 0; i < n; i++) {
-        if (state === 'playing') update(16);
-        else if (state === 'twomerge') drawTwoMerge(16);
-      }
-      if (state === 'playing') render();
-    },
-    setMeter: (v) => { player.meter = v; },
-    setBossHp: (v) => { if (boss) boss.hp = v; },
-    killTwins: () => { for (const t of bossTwins) { t.hp = 0; t.dying = true; t.alive = false; t.deathTimer = 0; } },
-    info: () => ({ state, hasBoss: !!boss, twinCount: bossTwins.length, enemyCount: enemies.length }),
-  };
 })();
